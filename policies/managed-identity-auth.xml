@@ -1,0 +1,24 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Authenticate with APIM managed identity to Azure OpenAI -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <!-- Route to the OpenAI backend -->
+        <set-backend-service backend-id="openai-backend" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

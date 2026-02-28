@@ -1,0 +1,33 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Authenticate with managed identity -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <set-backend-service backend-id="openai-backend" />
+
+        <!-- Content Safety: block severity 4+ content and detect jailbreaks -->
+        <llm-content-safety backend-id="content-safety-backend" shield-prompt="true">
+            <categories output-type="EightSeverityLevels">
+                <category name="Hate" threshold="4" />
+                <category name="Sexual" threshold="4" />
+                <category name="SelfHarm" threshold="4" />
+                <category name="Violence" threshold="4" />
+            </categories>
+        </llm-content-safety>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

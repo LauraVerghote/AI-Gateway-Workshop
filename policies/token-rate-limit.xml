@@ -1,0 +1,34 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Authenticate with managed identity -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <set-backend-service backend-id="openai-backend" />
+        
+        <!-- Token rate limiting: max 500 tokens per minute per subscription -->
+        <azure-openai-token-limit 
+            counter-key="@(context.Subscription.Id)"
+            tokens-per-minute="500" 
+            estimate-prompt-tokens="false" 
+            remaining-tokens-variable-name="remainingTokens" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <!-- Show remaining tokens in response header -->
+        <set-header name="X-Tokens-Remaining" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
+        </set-header>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
