@@ -59,8 +59,8 @@ Dev-ai-gateway/
 
 ```powershell
 # 1. Clone de repository
-git clone https://github.com/<your-org>/Dev-ai-gateway.git
-cd Dev-ai-gateway
+git clone https://github.com/LauraVerghote/AI-Gateway-Workshop.git
+cd AI-Gateway-Workshop
 
 # 2. Login bij Azure
 az login
