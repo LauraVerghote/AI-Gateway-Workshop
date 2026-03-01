@@ -28,3 +28,4 @@ Thumbs.db
 ## Deployment outputs
 *.tfstate
 *.tfstate.backup
+infra/main.json

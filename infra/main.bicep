@@ -121,6 +121,26 @@ module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryOpenAi
   }
 }
 
+@description('Enable APIM API configuration (backend, API import, policy, subscription)')
+param enableApiConfig bool = false
+
+@description('Policy XML content to apply to the Azure OpenAI API')
+param policyXml string = '<policies><inbound><base /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+
+// ===========================================================================
+// APIM API Configuration (Backend, API, Policy, Subscription)
+// Deployed from Lab 2 onwards
+// ===========================================================================
+module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
+  name: 'deploy-apim-api'
+  params: {
+    apimName: apim.outputs.name
+    openAiEndpoint: openAiPrimary.outputs.endpoint
+    policyXml: policyXml
+  }
+  dependsOn: [rbacPrimary]
+}
+
 // ===========================================================================
 // Outputs
 // ===========================================================================

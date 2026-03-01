@@ -4,124 +4,147 @@
 
 ## Goal
 
-In this lab you will:
-- Configure an **APIM backend** that points to Azure OpenAI
-- Set up **managed identity authentication** (no API keys!)
-- Import the **Azure OpenAI API** into APIM
-- Test the gateway with a chat completion request
+In this lab you will configure APIM to act as a gateway in front of Azure OpenAI. By the end, you'll have a working endpoint where clients send requests to APIM, and APIM authenticates to Azure OpenAI using its managed identity — no API keys involved.
+
+Specifically, this lab deploys:
+- An **APIM backend** — tells APIM where Azure OpenAI lives
+- An **API definition** — imports the Azure OpenAI REST API spec so APIM knows the available operations (chat completions, embeddings, etc.)
+- A **policy** — intercepts every request to get a managed identity token, set the Authorization header, and route to the backend
+- A **subscription** — creates a test API key so you can call the gateway
+
+## What is a policy?
+
+An APIM policy is an XML document that runs on every request. It has four sections:
+
+| Section | When it runs | What it does |
+|---------|-------------|-------------|
+| `inbound` | Before the request reaches the backend | Authentication, rate limiting, caching, header manipulation |
+| `backend` | During the call to the backend | Forwarding configuration |
+| `outbound` | After the backend responds | Response transformation, header injection |
+| `on-error` | When something fails | Error handling |
+
+In this lab, the policy (`policies/managed-identity-auth.xml`) does three things in the `inbound` section:
+
+1. **`authentication-managed-identity`** — asks Entra ID for a token scoped to `cognitiveservices.azure.com` using APIM's system-assigned managed identity
+2. **`set-header Authorization`** — puts that token in the `Authorization: Bearer <token>` header
+3. **`set-backend-service`** — routes the request to the `openai-backend`
+
+This means clients never need an Azure OpenAI API key — they authenticate to APIM with a subscription key, and APIM handles the Azure OpenAI authentication automatically.
+
+## Understanding the Bicep
+
+Open `infra/modules/apim-api.bicep` to see the four resources being deployed. Here's what each one does:
+
+### 1. Backend (`openai-backend`)
+```
+APIM Backend → points to → https://<your-openai>.openai.azure.com/openai
+```
+This tells APIM where to forward requests. When a policy says `set-backend-service backend-id="openai-backend"`, APIM looks up this backend to get the URL.
+
+### 2. API (`azure-openai-api`)
+Imports the official [Azure OpenAI REST API specification](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/cognitiveservices/data-plane/AzureOpenAI/inference/stable/2024-10-21/inference.json) from Microsoft. This registers all operations (chat completions, embeddings, image generation, etc.) so APIM can validate and route requests correctly. The API is exposed at the `/openai` path on your gateway.
+
+### 3. Policy (`managed-identity-auth`)
+The XML content from `policies/managed-identity-auth.xml` is attached to the API. Every request to `/openai/*` passes through this policy before reaching Azure OpenAI.
+
+### 4. Subscription (`test-sub`)
+Creates an API key scoped to the Azure OpenAI API. Clients must include this key in the `Ocp-Apim-Subscription-Key` header to call the gateway. This is how APIM controls who can access your AI endpoints.
 
 ## Steps
 
-### Step 1: Set variables and retrieve resource names
+### Step 1: Review the policy file
 
-Azure OpenAI was already deployed as part of Lab 1. Now retrieve the names and endpoints of your resources:
+Before deploying, take a look at the policy that will be applied. Open `policies/managed-identity-auth.xml`:
+
+```xml
+<policies>
+    <inbound>
+        <base />
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <set-backend-service backend-id="openai-backend" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
+```
+
+This is what runs on every request to your Azure OpenAI API through APIM.
+
+### Step 2: Deploy the APIM configuration
+
+Run the Bicep deployment with `enableApiConfig=true` to deploy the backend, API, policy, and subscription. We use a JSON parameters file to safely pass the policy XML content (inline parameters can break due to PowerShell XML escaping):
+
+```powershell
+# Read the policy XML and create a parameters file
+$policyXml = Get-Content -Path "../policies/managed-identity-auth.xml" -Raw
+
+@{
+  '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+  contentVersion = '1.0.0.0'
+  parameters = @{
+    location       = @{ value = $LOCATION }
+    enableApiConfig = @{ value = $true }
+    policyXml      = @{ value = $policyXml }
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
+
+# Deploy APIM API configuration
+az deployment group create `
+  --resource-group $RESOURCE_GROUP `
+  --template-file main.bicep `
+  --parameters temp-params.json
+```
+
+This deploys four new resources inside your existing APIM instance:
+
+| Resource | Type | Purpose |
+|----------|------|---------|
+| `openai-backend` | APIM Backend | Points to your Azure OpenAI endpoint |
+| `azure-openai-api` | APIM API | Imports the Azure OpenAI REST API spec |
+| `policy` | APIM API Policy | Managed identity auth + routing |
+| `test-sub` | APIM Subscription | Test API key scoped to the OpenAI API |
+
+> ⏱️ **Note**: This deployment is quick (~1-2 minutes) since APIM is already running.
+
+### Step 3: Retrieve the gateway URL and subscription key
 
 ```powershell
 # Get APIM name
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 
-# Get OpenAI endpoint
-$OAI_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[0].name" -o tsv
-$OAI_ENDPOINT = az cognitiveservices account show -n $OAI_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
-
-Write-Host "APIM Name: $APIM_NAME"
-Write-Host "OpenAI Name: $OAI_NAME"
-Write-Host "OpenAI Endpoint: $OAI_ENDPOINT"
-```
-
-### Step 2: Create an APIM Backend for Azure OpenAI
-
-```powershell
-# Get your subscription ID
-$SUBSCRIPTION_ID = az account show --query "id" -o tsv
-
-# Write the request body to a temp file
-@{
-  properties = @{
-    url = "${OAI_ENDPOINT}openai"
-    protocol = "http"
-  }
-} | ConvertTo-Json -Depth 5 | Set-Content -Path backend-body.json
-
-# Create backend in APIM via REST API
-az rest --method put `
-  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/backends/openai-backend?api-version=2024-05-01" `
-  --body "@backend-body.json"
-
-# Clean up
-Remove-Item backend-body.json
-```
-
-### Step 3: Import the Azure OpenAI API
-
-This imports Microsoft's official Azure OpenAI REST API specification into APIM. It registers all Azure OpenAI operations (chat completions, embeddings, etc.) so APIM knows how to route and validate requests. In Step 4, we'll attach a policy to this API that handles authentication.
-
-```powershell
-# Import the OpenAI API specification
-az apim api import `
-  --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --api-id "azure-openai-api" `
-  --path "openai" `
-  --display-name "Azure OpenAI API" `
-  --specification-format OpenApiJson `
-  --specification-url "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/cognitiveservices/data-plane/AzureOpenAI/inference/stable/2024-10-21/inference.json" `
-  --subscription-required true
-```
-
-### Step 4: Apply the Managed Identity Policy
-
-The repository already includes a policy file at `policies/managed-identity-auth.xml` that configures APIM to authenticate with Azure OpenAI using its managed identity instead of API keys. Here's what it does:
-
-- **`authentication-managed-identity`** — requests a token from Entra ID for the `cognitiveservices.azure.com` resource
-- **`set-header Authorization`** — adds the token as a Bearer header to the outgoing request
-- **`set-backend-service`** — routes the request to the `openai-backend` you created in Step 2
-
-Apply this policy to the imported API:
-
-```powershell
-# Read the policy XML content
-$policyXml = Get-Content -Path "../policies/managed-identity-auth.xml" -Raw
-
-# Wrap it in the required format and write to a temp file
-@{
-  properties = @{
-    format = "xml"
-    value = $policyXml
-  }
-} | ConvertTo-Json -Depth 5 | Set-Content -Path policy-body.json
-
-# Apply policy to the API via REST API
-az rest --method put `
-  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/azure-openai-api/policies/policy?api-version=2024-05-01" `
-  --body "@policy-body.json"
-
-# Clean up
-Remove-Item policy-body.json
-```
-
-### Step 5: Test the gateway endpoint
-
-```powershell
 # Get the gateway URL
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 
-# Create a subscription key for testing
-az apim subscription create `
-  --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --subscription-id "test-sub" `
-  --display-name "Test Subscription" `
-  --scope "/apis/azure-openai-api"
+# Get your subscription ID
+$SUBSCRIPTION_ID = az account show --query "id" -o tsv
 
-# Get the subscription key
-$SUB_KEY = az apim subscription show `
-  --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --subscription-id "test-sub" `
-  --query "primaryKey" -o tsv
+# Get the test subscription key
+$SUB_KEY = (az rest --method post `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/test-sub/listSecrets?api-version=2024-05-01" `
+  | ConvertFrom-Json).primaryKey
 
-# Test with a chat completion request
+Write-Host "Gateway URL: $GATEWAY_URL"
+Write-Host "Subscription Key: $SUB_KEY"
+```
+
+### Step 4: Test the gateway endpoint
+
+Send a chat completion request through the gateway. This tests the full chain: your request hits APIM, the policy authenticates with managed identity, and the request is forwarded to Azure OpenAI.
+
+```powershell
 $body = @{
     messages = @(
         @{
@@ -139,13 +162,27 @@ Invoke-RestMethod `
   -Body $body
 ```
 
+If everything is working, you should see a response like this:
+
+```
+id      : chatcmpl-abc123...
+object  : chat.completion
+model   : gpt-4o-mini-2024-07-18
+choices : {@{index=0; message=; finish_reason=stop}}
+usage   : @{prompt_tokens=15; completion_tokens=30; total_tokens=45}
+```
+
+The `choices[0].message.content` field contains the AI's answer. This confirms the full chain is working:
+
+**Client → APIM (subscription key) → Policy (managed identity token) → Azure OpenAI → Response**
+
 ## Expected result
 
 After this lab you will have:
-- ✅ Azure OpenAI with GPT-4o-mini model deployed
 - ✅ APIM backend pointing to Azure OpenAI
-- ✅ Managed identity authentication (no API keys!)
-- ✅ OpenAI API imported into APIM
+- ✅ Azure OpenAI REST API imported into APIM
+- ✅ Managed identity authentication policy (no API keys to Azure OpenAI!)
+- ✅ Test subscription key for calling the gateway
 - ✅ Working chat completion endpoint through the gateway
 
 ## Architecture
