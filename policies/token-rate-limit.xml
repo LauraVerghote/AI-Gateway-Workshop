@@ -24,7 +24,7 @@
     <outbound>
         <!-- Show remaining tokens in response header -->
         <set-header name="X-Tokens-Remaining" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
+            <value>@(context.Variables.GetValueOrDefault&lt;int&gt;("remainingTokens", 0).ToString())</value>
         </set-header>
         <base />
     </outbound>

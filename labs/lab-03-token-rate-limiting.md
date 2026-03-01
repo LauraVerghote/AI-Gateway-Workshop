@@ -22,7 +22,11 @@ Token rate limiting is crucial for AI Gateway scenarios:
 
 ## Steps
 
-### Step 1: Apply the Token Rate Limit Policy
+### Step 1: Review the Token Rate Limit Policy
+
+In Lab 2, we deployed a basic managed identity authentication policy. Now we're going to **replace** that policy with one that adds token rate limiting on top of the same authentication.
+
+Open `policies/token-rate-limit.xml` and review the contents. This is the policy we'll apply to the API:
 
 ```xml
 <!-- policies/token-rate-limit.xml -->
@@ -52,7 +56,7 @@ Token rate limiting is crucial for AI Gateway scenarios:
     <outbound>
         <!-- Show remaining tokens in response header -->
         <set-header name="X-Tokens-Remaining" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
+            <value>@(context.Variables.GetValueOrDefault&lt;int&gt;("remainingTokens", 0).ToString())</value>
         </set-header>
         <base />
     </outbound>
@@ -62,24 +66,59 @@ Token rate limiting is crucial for AI Gateway scenarios:
 </policies>
 ```
 
-### Step 2: Apply the policy
+Compared to the Lab 2 policy, this adds two new elements:
+
+| Element | Section | What it does |
+|---------|---------|-------------|
+| `azure-openai-token-limit` | `inbound` | Counts tokens per subscription and blocks requests when the limit (500 tokens/min) is exceeded with HTTP 429 |
+| `set-header X-Tokens-Remaining` | `outbound` | Adds a response header showing how many tokens the caller has left this minute |
+
+The `counter-key` is set to `context.Subscription.Id`, meaning each APIM subscription gets its own independent token budget. You could also use `context.Request.IpAddress` to limit per IP address.
+
+### Step 2: Deploy the updated policy
+
+We'll redeploy the Bicep template with the new policy XML, just like in Lab 2. The deployment replaces the existing policy on the API with the new token-rate-limit version.
+
+Make sure you're in the `infra/` directory and your `$RESOURCE_GROUP` and `$LOCATION` variables are still set from Lab 1:
 
 ```powershell
-$RESOURCE_GROUP = "rg-aigateway-workshop"
-$APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
+# Read the new policy XML and create a parameters file
+$policyXml = Get-Content -Path "../policies/token-rate-limit.xml" -Raw
 
-az apim api policy create `
+@{
+  '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+  contentVersion = '1.0.0.0'
+  parameters = @{
+    location       = @{ value = $LOCATION }
+    enableApiConfig = @{ value = $true }
+    policyXml      = @{ value = $policyXml }
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
+
+# Deploy the updated policy
+az deployment group create `
   --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --api-id "azure-openai-api" `
-  --xml-file "../policies/token-rate-limit.xml"
+  --template-file main.bicep `
+  --parameters temp-params.json
 ```
+
+> ⏱️ This reuses the same APIM instance and API from Lab 2 — only the policy content changes. Deployment takes ~1-2 minutes.
+
+> **Important:** The Bicep template (`infra/modules/apim-api.bicep`) uses `format: 'rawxml'` when applying the policy. This is required because the policy XML contains C#-style expressions like `GetValueOrDefault<int>(...)`, which must be escaped as `&lt;int&gt;` in XML. If you use `format: 'xml'` instead, ARM will double-decode the entities and the deployment will fail with: *"The 'int' start tag does not match the end tag of 'value'"*.
 
 ### Step 3: Test the rate limiting
 
+Now let's verify the rate limit works. We'll send 5 requests in a row, each asking for up to 200 tokens. With a limit of 500 tokens per minute, we should hit the limit after 2-3 responses:
+
 ```powershell
+$APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
-$SUB_KEY = az apim subscription show -g $RESOURCE_GROUP --service-name $APIM_NAME --subscription-id "test-sub" --query "primaryKey" -o tsv
+
+# Get the subscription key
+$SUBSCRIPTION_ID = az account show --query "id" -o tsv
+$SUB_KEY = (az rest --method post `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/test-sub/listSecrets?api-version=2024-05-01" `
+  | ConvertFrom-Json).primaryKey
 
 # Send multiple requests to reach the limit
 for ($i = 1; $i -le 5; $i++) {
@@ -107,23 +146,30 @@ for ($i = 1; $i -le 5; $i++) {
     catch {
         Write-Host "Status: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Red
         if ($_.Exception.Response.StatusCode.value__ -eq 429) {
-            Write-Host "Rate limit reached! ✅ Working correctly." -ForegroundColor Yellow
+            Write-Host "Rate limit reached! Working correctly." -ForegroundColor Yellow
         }
     }
 }
 ```
 
+What to look for:
+- The first few requests should succeed (HTTP 200) with a decreasing `Tokens remaining` value
+- Once the budget is exhausted, subsequent requests return **HTTP 429 (Too Many Requests)**
+- After waiting 1 minute, the counter resets and requests succeed again
+
 ### Step 4: Experiment with parameters
 
-Adjust the policy and test:
+To experiment, edit `policies/token-rate-limit.xml`, change the values below, and re-run Step 2 to redeploy:
 
 | Parameter | Value | Effect |
 |-----------|-------|--------|
-| `tokens-per-minute` | 100 | Very restrictive - quick 429 |
-| `tokens-per-minute` | 5000 | Normal usage |
-| `tokens-per-minute` | 50000 | High volume |
-| `estimate-prompt-tokens` | true | Faster but less accurate |
-| `counter-key` | `Request.IpAddress` | Limit per IP instead of subscription |
+| `tokens-per-minute` | 100 | Very restrictive — you'll hit 429 after 1 request |
+| `tokens-per-minute` | 5000 | Normal usage — allows several conversations per minute |
+| `tokens-per-minute` | 50000 | High volume — unlikely to hit the limit |
+| `estimate-prompt-tokens` | true | Estimates prompt tokens before sending to the backend (faster, but less accurate) |
+| `counter-key` | `@(context.Request.IpAddress)` | Limit per IP address instead of per subscription |
+
+> **Tip:** After changing the XML, you need to redeploy (Step 2) for the changes to take effect. The policy is stored in APIM, not read from the file at runtime.
 
 ## Expected result
 

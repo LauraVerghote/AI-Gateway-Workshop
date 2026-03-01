@@ -54,7 +54,7 @@ resource openAiApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2024-06-
   parent: openAiApi
   name: 'policy'
   properties: {
-    format: 'xml'
+    format: 'rawxml'
     value: policyXml
   }
   dependsOn: [openAiBackend]
