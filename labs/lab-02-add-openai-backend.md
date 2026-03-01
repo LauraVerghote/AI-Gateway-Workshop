@@ -155,24 +155,35 @@ $body = @{
     model = "gpt-4o-mini"
 } | ConvertTo-Json -Depth 5
 
-Invoke-RestMethod `
+$response = Invoke-RestMethod `
   -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
   -Method POST `
   -Headers @{ "Ocp-Apim-Subscription-Key" = $SUB_KEY; "Content-Type" = "application/json" } `
   -Body $body
+
+# Show the AI's answer
+$response.choices[0].message.content
 ```
 
-If everything is working, you should see a response like this:
+If everything is working, you should see the AI's answer printed, for example:
 
 ```
-id      : chatcmpl-abc123...
-object  : chat.completion
-model   : gpt-4o-mini-2024-07-18
-choices : {@{index=0; message=; finish_reason=stop}}
-usage   : @{prompt_tokens=15; completion_tokens=30; total_tokens=45}
+Azure API Management is a cloud-based service that allows organizations to create, publish, secure, and analyze APIs at scale.
 ```
 
-The `choices[0].message.content` field contains the AI's answer. This confirms the full chain is working:
+> **Tip:** If you just run `Invoke-RestMethod` without storing the result, PowerShell shows a truncated table view where nested objects like `message=` appear empty. Always store the response in a variable and access `$response.choices[0].message.content` to see the actual answer.
+
+You can also inspect the full response object:
+
+```powershell
+# Full response (expanded view)
+$response | ConvertTo-Json -Depth 10
+
+# Token usage
+$response.usage
+```
+
+This confirms the full chain is working:
 
 **Client → APIM (subscription key) → Policy (managed identity token) → Microsoft Foundry → Response**
 
@@ -192,11 +203,11 @@ Client Request
     │
     ▼
 ┌──────────────────────┐     Managed Identity     ┌──────────────────┐
-│  API Management      │ ──────────────────►  │  Microsoft       │
-│  (Gateway)           │     Bearer Token          │  Foundry          │
-│  - Policy: Auth MI   │ ◄──────────────────  │  - gpt-4o-mini   │
-│  - Backend: openai   │     Response              │  - embeddings    │
-└──────────────────────┘                           └──────────────────┘
+│  API Management      │ ──────────────────────►  │  Microsoft       │
+│  (Gateway)           │     Bearer Token         │  Foundry         │
+│  - Policy: Auth MI   │ ◄──────────────────────  │  - gpt-4o-mini   │
+│  - Backend: openai   │     Response             │  - embeddings    │
+└──────────────────────┘                          └──────────────────┘
 ```
 
 ## References
@@ -206,5 +217,5 @@ Client Request
 - [Cognitive Services RBAC Roles](https://learn.microsoft.com/azure/ai-services/openai/how-to/role-based-access-control)
 
 ---
-**Previous lab:** [← Lab 1 - Deploy the Gateway](../lab-01-deploy-gateway/README.md)  
+**Previous lab:** [← Lab 1 - Deploy the Gateway](lab-01-deploy-gateway.md)  
 **Next lab:** [Lab 3 - Token Rate Limiting →](lab-03-token-rate-limiting.md)

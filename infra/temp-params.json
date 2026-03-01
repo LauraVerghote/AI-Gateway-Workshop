@@ -1,0 +1,15 @@
+{
+  "contentVersion": "1.0.0.0",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "parameters": {
+    "enableApiConfig": {
+      "value": true
+    },
+    "location": {
+      "value": "swedencentral"
+    },
+    "policyXml": {
+      "value": "<policies>\r\n    <inbound>\r\n        <base />\r\n        <!-- Authenticate with APIM managed identity to Microsoft Foundry -->\r\n        <authentication-managed-identity \r\n            resource=\"https://cognitiveservices.azure.com\" \r\n            output-token-variable-name=\"managed-id-access-token\" \r\n            ignore-error=\"false\" />\r\n        <set-header name=\"Authorization\" exists-action=\"override\">\r\n            <value>@(\"Bearer \" + (string)context.Variables[\"managed-id-access-token\"])</value>\r\n        </set-header>\r\n        <!-- Route to the OpenAI backend -->\r\n        <set-backend-service backend-id=\"openai-backend\" />\r\n    </inbound>\r\n    <backend>\r\n        <base />\r\n    </backend>\r\n    <outbound>\r\n        <base />\r\n    </outbound>\r\n    <on-error>\r\n        <base />\r\n    </on-error>\r\n</policies>\r\n"
+    }
+  }
+}
