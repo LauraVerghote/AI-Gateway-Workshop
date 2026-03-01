@@ -35,15 +35,21 @@ Write-Host "OpenAI Endpoint: $OAI_ENDPOINT"
 # Get your subscription ID
 $SUBSCRIPTION_ID = az account show --query "id" -o tsv
 
+# Write the request body to a temp file
+@{
+  properties = @{
+    url = "${OAI_ENDPOINT}openai"
+    protocol = "http"
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path backend-body.json
+
 # Create backend in APIM via REST API
 az rest --method put `
   --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/backends/openai-backend?api-version=2024-05-01" `
-  --body (@{
-    properties = @{
-      url = "${OAI_ENDPOINT}openai"
-      protocol = "http"
-    }
-  } | ConvertTo-Json -Depth 5)
+  --body "@backend-body.json"
+
+# Clean up
+Remove-Item backend-body.json
 ```
 
 ### Step 3: Import the Azure OpenAI API
