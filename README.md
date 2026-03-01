@@ -55,7 +55,17 @@ Dev-ai-gateway/
     └── test-gateway.ps1               # Test the gateway endpoint
 ```
 
-## 🚀 Quick Start
+## 🚀 Getting Started
+
+There are two ways to work through this workshop:
+
+### Option A: Step by step (recommended for learning)
+
+Start directly with [Lab 1](labs/lab-01-deploy-gateway/README.md) and follow each lab in order. You will deploy and configure each component yourself, learning what each piece does.
+
+### Option B: Quick Start (deploy infrastructure first)
+
+If you prefer to deploy all infrastructure upfront and focus on the **policies** (Labs 3-7), run the deploy script first:
 
 ```powershell
 # 1. Clone the repository
@@ -65,12 +75,21 @@ cd AI-Gateway-Workshop
 # 2. Login to Azure
 az login
 
-# 3. Set your subscription
-az account set --subscription "<subscription-id>"
-
-# 4. Deploy the full infrastructure
+# 3. Deploy the full infrastructure
 .\scripts\deploy.ps1 -ResourceGroup "rg-aigateway-workshop" -Location "swedencentral"
 ```
+
+The script deploys the following resources into a single resource group:
+
+| Resource | Description |
+|----------|-------------|
+| **API Management (Basicv2)** | The AI Gateway itself, with a system-assigned managed identity |
+| **Azure OpenAI** | GPT-4o-mini and text-embedding-3-small model deployments |
+| **Application Insights + Log Analytics** | Monitoring and logging for the gateway |
+| **RBAC role assignment** | Grants APIM's managed identity the "Cognitive Services OpenAI User" role on the OpenAI resource |
+| **APIM backends** | Pre-configured `openai-backend` and `embeddings-backend` pointing to the OpenAI endpoint |
+
+> After running this, you can skip to [Lab 3 - Token Rate Limiting](labs/lab-03-token-rate-limiting/README.md). Labs 1-2 are still worth reading to understand the architecture.
 
 ## 📚 Workshop Modules
 
