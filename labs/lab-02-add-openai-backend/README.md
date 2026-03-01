@@ -5,7 +5,6 @@
 ## Goal
 
 In this lab you will:
-- Deploy **Azure OpenAI** with a GPT-4o-mini and embedding model
 - Configure an **APIM backend** that points to Azure OpenAI
 - Set up **managed identity authentication** (no API keys!)
 - Import the **Azure OpenAI API** into APIM
@@ -13,21 +12,9 @@ In this lab you will:
 
 ## Steps
 
-### Step 1: Deploy Azure OpenAI (if not already done)
+### Step 1: Set variables and retrieve resource names
 
-If you deployed the full `main.bicep` in Lab 1, OpenAI is already available. Otherwise:
-
-```powershell
-$RESOURCE_GROUP = "rg-aigateway-workshop"
-
-# Deploy everything (including OpenAI)
-az deployment group create `
-  --resource-group $RESOURCE_GROUP `
-  --template-file ../infra/main.bicep `
-  --parameters ../infra/main.bicepparam
-```
-
-### Step 2: Retrieve names and endpoints
+Azure OpenAI was already deployed as part of Lab 1. Now retrieve the names and endpoints of your resources:
 
 ```powershell
 # Get APIM name
@@ -42,7 +29,7 @@ Write-Host "OpenAI Name: $OAI_NAME"
 Write-Host "OpenAI Endpoint: $OAI_ENDPOINT"
 ```
 
-### Step 3: Create an APIM Backend for Azure OpenAI
+### Step 2: Create an APIM Backend for Azure OpenAI
 
 ```powershell
 # Create backend in APIM
@@ -54,7 +41,7 @@ az apim backend create `
   --url "${OAI_ENDPOINT}openai"
 ```
 
-### Step 4: Import the Azure OpenAI API
+### Step 3: Import the Azure OpenAI API
 
 ```powershell
 # Import the OpenAI API specification
@@ -69,7 +56,7 @@ az apim api import `
   --subscription-required true
 ```
 
-### Step 5: Apply the Managed Identity Policy
+### Step 4: Apply the Managed Identity Policy
 
 Create a policy that uses managed identity instead of API keys:
 
@@ -112,7 +99,7 @@ az apim api policy create `
   --xml-file "../../policies/managed-identity-auth.xml"
 ```
 
-### Step 6: Test the gateway endpoint
+### Step 5: Test the gateway endpoint
 
 ```powershell
 # Get the gateway URL
