@@ -23,6 +23,19 @@ We use **Basicv2** because it deploys quickly, is inexpensive, and supports all 
 
 ## Steps
 
+### Step 0: Set up your environment
+
+Create a Python virtual environment so everyone uses the same Azure CLI version, regardless of what's installed on your machine:
+
+```powershell
+# From the repository root
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+> **Tip**: You should see `(.venv)` in your terminal prompt when the environment is active. Run `.venv\Scripts\Activate.ps1` again if you open a new terminal.
+
 ### Step 1: Login to Azure
 
 First, authenticate with Azure so you can create and manage resources from the command line:
