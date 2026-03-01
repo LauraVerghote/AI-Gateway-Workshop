@@ -137,5 +137,5 @@ Adjust the policy and test:
 - [Token Rate Limiting Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/token-rate-limiting)
 
 ---
-**Previous lab:** [← Lab 2 - OpenAI Backend](../lab-02-add-openai-backend/README.md)  
+**Previous lab:** [← Lab 2 - Foundry Backend](../lab-02-add-openai-backend/README.md)  
 **Next lab:** [Lab 4 - Semantic Caching →](../lab-04-semantic-caching/README.md)

@@ -230,7 +230,8 @@ requests
                 └──────┬───────────────────┬───────────────────┘
                        │                   │
               ┌────────▼────────┐ ┌────────▼────────┐
-              │ Azure OpenAI    │ │ Azure OpenAI    │
+              │ Microsoft       │ │ Microsoft       │
+              │ Foundry         │ │ Foundry         │
               │ Sweden Central  │ │ West Europe     │
               │ - gpt-4o-mini   │ │ - gpt-4o-mini   │
               │ - embeddings    │ │ - embeddings    │

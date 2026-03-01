@@ -1,8 +1,8 @@
 // ===========================================================================
-// Azure OpenAI Service with Model Deployments
+// Microsoft Foundry (Azure AI Services) with Model Deployments
 // ===========================================================================
 
-@description('Name of the OpenAI resource')
+@description('Name of the AI Services resource')
 param name string
 
 @description('Azure region')
@@ -23,10 +23,10 @@ param embeddingModelVersion string
 @description('Model capacity (TPM in thousands)')
 param capacity int = 30
 
-resource openAi 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   name: name
   location: location
-  kind: 'OpenAI'
+  kind: 'AIServices'
   sku: {
     name: 'S0'
   }
@@ -38,7 +38,7 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 
 // Chat completion model deployment
 resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
-  parent: openAi
+  parent: aiServices
   name: modelName
   sku: {
     name: 'Standard'
@@ -55,7 +55,7 @@ resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-1
 
 // Embedding model deployment (needed for semantic caching)
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
-  parent: openAi
+  parent: aiServices
   name: embeddingModelName
   sku: {
     name: 'GlobalStandard'
@@ -71,6 +71,6 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   dependsOn: [chatDeployment]
 }
 
-output id string = openAi.id
-output name string = openAi.name
-output endpoint string = openAi.properties.endpoint
+output id string = aiServices.id
+output name string = aiServices.name
+output endpoint string = aiServices.properties.endpoint

@@ -1,13 +1,13 @@
 // ===========================================================================
-// APIM Configuration for Azure OpenAI
+// APIM Configuration for Microsoft Foundry
 // Deploys: Backend, API, Policy, Subscription
 // ===========================================================================
 
 @description('Name of the existing APIM instance')
 param apimName string
 
-@description('Azure OpenAI endpoint URL')
-param openAiEndpoint string
+@description('Microsoft Foundry endpoint URL')
+param foundryEndpoint string
 
 @description('Policy XML content to apply to the API')
 param policyXml string
@@ -20,25 +20,25 @@ resource apimService 'Microsoft.ApiManagement/service@2024-06-01-preview' existi
 }
 
 // ===========================================================================
-// Backend: Points APIM to the Azure OpenAI endpoint
+// Backend: Points APIM to the Microsoft Foundry endpoint
 // ===========================================================================
 resource openAiBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = {
   parent: apimService
   name: 'openai-backend'
   properties: {
-    url: '${openAiEndpoint}openai'
+    url: '${foundryEndpoint}openai'
     protocol: 'http'
   }
 }
 
 // ===========================================================================
-// API: Import Azure OpenAI REST API specification
+// API: Import Azure OpenAI-compatible REST API specification (used by Microsoft Foundry)
 // ===========================================================================
 resource openAiApi 'Microsoft.ApiManagement/service/apis@2024-06-01-preview' = {
   parent: apimService
   name: 'azure-openai-api'
   properties: {
-    displayName: 'Azure OpenAI API'
+    displayName: 'Microsoft Foundry API'
     path: 'openai'
     protocols: ['https']
     subscriptionRequired: true

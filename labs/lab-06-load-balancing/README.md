@@ -1,11 +1,11 @@
 # Lab 6: Load Balancing with Retry
 
-> Distribute traffic across multiple Azure OpenAI backends with automatic failover
+> Distribute traffic across multiple Microsoft Foundry backends with automatic failover
 
 ## Goal
 
 In this lab you will:
-- Deploy a **second Azure OpenAI** instance (different region)
+- Deploy a **second Microsoft Foundry** instance (different region)
 - Configure a **backend pool** in APIM
 - Set up **automatic retry** on 429 (rate limit) or 503 (unavailable)
 - Test failover by overloading one backend
@@ -13,29 +13,29 @@ In this lab you will:
 ## Background
 
 Load balancing is essential when:
-- You **need more quota** than a single OpenAI instance provides
+- You **need more quota** than a single Foundry instance provides
 - You want **high availability** (multi-region)
 - You want to **spread costs** across multiple instances
 
 ```
-                    ┌── OpenAI (Sweden Central)  [60% traffic]
+                    ┌── Microsoft Foundry (Sweden Central)  [60% traffic]
 Client → APIM ────►│
-                    └── OpenAI (West Europe)     [40% traffic]
+                    └── Microsoft Foundry (West Europe)     [40% traffic]
 ```
 
 ## Steps
 
-### Step 1: Deploy the secondary OpenAI
+### Step 1: Deploy the secondary Foundry instance
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 
-# Redeploy with secondary OpenAI enabled
+# Redeploy with secondary Foundry instance enabled
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file ../infra/main.bicep `
   --parameters ../infra/main.bicepparam `
-  --parameters enableSecondaryOpenAi=true
+  --parameters enableSecondaryFoundry=true
 ```
 
 ### Step 2: Create the secondary backend in APIM
@@ -44,8 +44,8 @@ az deployment group create `
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 
 # Get secondary endpoint
-$OAI2_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[?contains(name,'oai-aigateway2')].name" -o tsv
-$OAI2_ENDPOINT = az cognitiveservices account show -n $OAI2_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
+$AIS2_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[?contains(name,'ais-aigateway2')].name" -o tsv
+$AIS2_ENDPOINT = az cognitiveservices account show -n $AIS2_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
 
 # Create secondary backend
 az apim backend create `
@@ -53,7 +53,7 @@ az apim backend create `
   --service-name $APIM_NAME `
   --backend-id "openai-backend-secondary" `
   --protocol "http" `
-  --url "${OAI2_ENDPOINT}openai"
+  --url "${AIS2_ENDPOINT}openai"
 ```
 
 ### Step 3: Create a Backend Pool (via ARM/Bicep)

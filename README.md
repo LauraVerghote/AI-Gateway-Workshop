@@ -6,7 +6,7 @@
 
 In this workshop you will build an AI Gateway step by step that:
 
-- Protects **Azure OpenAI** models behind an API Management gateway
+- Protects **Microsoft Foundry** models behind an API Management gateway
 - Implements **token rate limiting** to control costs
 - Enables **semantic caching** to reduce costs (60-80% savings)
 - Adds **content safety** filters to block harmful content
@@ -32,12 +32,13 @@ Dev-ai-gateway/
 │   ├── main.bicepparam                # Parameters
 │   └── modules/
 │       ├── apim.bicep                 # API Management instance
-│       ├── openai.bicep               # Azure OpenAI resource
+│       ├── foundry.bicep               # Microsoft Foundry resource (Azure AI Services)
 │       ├── app-insights.bicep         # Application Insights
-│       └── role-assignment.bicep      # RBAC role assignments
+│       ├── role-assignment.bicep      # RBAC role assignments
+│       └── apim-api.bicep             # APIM API, backend, policy & subscription
 ├── labs/
 │   ├── lab-01-deploy-gateway/         # Lab 1: Deploy the AI Gateway
-│   ├── lab-02-add-openai-backend/     # Lab 2: Add Azure OpenAI as backend
+│   ├── lab-02-add-openai-backend/     # Lab 2: Add Microsoft Foundry as backend
 │   ├── lab-03-token-rate-limiting/    # Lab 3: Token Rate Limiting
 │   ├── lab-04-semantic-caching/       # Lab 4: Semantic Caching
 │   ├── lab-05-content-safety/         # Lab 5: Content Safety
@@ -84,10 +85,10 @@ The script deploys the following resources into a single resource group:
 | Resource | Description |
 |----------|-------------|
 | **API Management (Basicv2)** | The AI Gateway itself, with a system-assigned managed identity |
-| **Azure OpenAI** | GPT-4o-mini and text-embedding-3-small model deployments |
+| **Microsoft Foundry** | GPT-4o-mini and text-embedding-3-small model deployments |
 | **Application Insights + Log Analytics** | Monitoring and logging for the gateway |
-| **RBAC role assignment** | Grants APIM's managed identity the "Cognitive Services OpenAI User" role on the OpenAI resource |
-| **APIM backends** | Pre-configured `openai-backend` and `embeddings-backend` pointing to the OpenAI endpoint |
+| **RBAC role assignment** | Grants APIM's managed identity the "Cognitive Services OpenAI User" role on the Foundry resource |
+| **APIM backends** | Pre-configured `openai-backend` and `embeddings-backend` pointing to the Foundry endpoint |
 
 > After running this, you can skip to [Lab 3 - Token Rate Limiting](labs/lab-03-token-rate-limiting/README.md). Labs 1-2 are still worth reading to understand the architecture.
 
@@ -96,7 +97,7 @@ The script deploys the following resources into a single resource group:
 | # | Lab | Duration | Topic |
 |---|-----|----------|-------|
 | 1 | [Deploy the AI Gateway](labs/lab-01-deploy-gateway/README.md) | 15 min | Deploy APIM Basicv2 + resource group |
-| 2 | [Azure OpenAI Backend](labs/lab-02-add-openai-backend/README.md) | 20 min | Connect OpenAI as backend with managed identity |
+| 2 | [Microsoft Foundry Backend](labs/lab-02-add-openai-backend/README.md) | 20 min | Connect Foundry as backend with managed identity |
 | 3 | [Token Rate Limiting](labs/lab-03-token-rate-limiting/README.md) | 15 min | Limit tokens per minute |
 | 4 | [Semantic Caching](labs/lab-04-semantic-caching/README.md) | 20 min | Cache similar prompts |
 | 5 | [Content Safety](labs/lab-05-content-safety/README.md) | 15 min | Filter harmful content |

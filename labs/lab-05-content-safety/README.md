@@ -23,7 +23,7 @@ Content Safety is essential for production AI Gateway deployments:
 ## Prerequisites
 
 - Azure Content Safety resource (will be created during the workshop)
-- Or: use the built-in content safety of Azure OpenAI
+- Or: use the built-in content safety of Microsoft Foundry (Azure AI Services includes Content Safety)
 
 ## Steps
 

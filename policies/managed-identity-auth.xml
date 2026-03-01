@@ -1,7 +1,7 @@
 <policies>
     <inbound>
         <base />
-        <!-- Authenticate with APIM managed identity to Azure OpenAI -->
+        <!-- Authenticate with APIM managed identity to Microsoft Foundry -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 

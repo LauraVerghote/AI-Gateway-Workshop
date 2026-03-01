@@ -1,6 +1,6 @@
 # ===========================================================================
 # Test Gateway - Azure AI Gateway Workshop
-# Sends a test request through the APIM gateway to Azure OpenAI
+# Sends a test request through the APIM gateway to Microsoft Foundry
 # ===========================================================================
 
 param(

@@ -7,8 +7,10 @@
 
 In this lab you will deploy:
 - A **resource group** for all workshop resources
-- **Azure API Management** with the Basicv2 SKU
-- **Application Insights** for monitoring
+- **Azure API Management** (Basicv2) — the AI Gateway
+- **Microsoft Foundry** (Azure AI Services) with gpt-4o-mini and text-embedding-3-small models
+- **Application Insights + Log Analytics** for monitoring
+- **RBAC role assignment** — gives APIM's managed identity access to Microsoft Foundry
 
 ## Why Basicv2?
 
@@ -62,14 +64,15 @@ az group create --name $RESOURCE_GROUP --location $LOCATION
 This step uses a Bicep template to deploy the following resources into your resource group:
 
 - **Azure API Management (Basicv2)** — the AI Gateway that will route and manage your API calls
+- **Microsoft Foundry** (Azure AI Services) — with two model deployments: `gpt-4o-mini` (chat) and `text-embedding-3-small` (embeddings)
 - **Application Insights + Log Analytics workspace** — for monitoring, logging, and diagnostics
-- **System-assigned Managed Identity** on APIM — used later to authenticate securely to Azure OpenAI without keys
+- **RBAC role assignment** — grants APIM's system-assigned managed identity the *Cognitive Services OpenAI User* role on the Foundry resource, so APIM can authenticate without API keys
 
 ```powershell
 # Navigate to the infra folder
 cd infra
 
-# Deploy only APIM + Application Insights
+# Deploy the infrastructure
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file main.bicep `
@@ -77,6 +80,8 @@ az deployment group create `
   --parameters apimPublisherEmail="your-email@domain.com" `
   --parameters apimPublisherName="Workshop Participant"
 ```
+
+> **`apimPublisherEmail` and `apimPublisherName`** are required by Azure when creating an APIM instance. Azure uses them for operational notification emails (e.g. certificate expiry, quota alerts) and as contact information on the developer portal. For this workshop any value works — the defaults in the template (`workshop@contoso.com` / `AI Gateway Workshop`) are fine if you omit these parameters.
 
 > ⏱️ **Note**: The deployment takes ~5-10 minutes for Basicv2.
 
@@ -98,31 +103,49 @@ $GATEWAY_URL = az apim show `
 Write-Host "Gateway URL: $GATEWAY_URL"
 ```
 
+You should see output similar to:
+
+```
+Gateway URL: https://apim-aigateway-<unique-suffix>.azure-api.net
+```
+
+If you see a valid URL, your APIM instance is deployed and reachable. You can also verify in the [Azure Portal](https://portal.azure.com) by navigating to your resource group `rg-aigateway-workshop` — you should see four resources:
+
+| Resource | Type |
+|----------|------|
+| `apim-aigateway-<suffix>` | API Management service |
+| `appi-aigateway-<suffix>` | Application Insights |
+| `law-appi-aigateway-<suffix>` | Log Analytics workspace |
+| `ais-aigateway-<suffix>` | Microsoft Foundry (AI Services) |
+
 ## Expected result
 
 After this lab you will have:
 - ✅ A resource group `rg-aigateway-workshop`
 - ✅ API Management (Basicv2) running with a gateway URL
-- ✅ Application Insights for logging and monitoring
-- ✅ System-assigned managed identity on APIM
+- ✅ Microsoft Foundry with gpt-4o-mini and text-embedding-3-small models
+- ✅ Application Insights + Log Analytics for monitoring
+- ✅ RBAC role assignment — APIM's managed identity can access Microsoft Foundry
 
 ## Architecture
 
 ```
-┌─────────────────────────────────┐
-│     rg-aigateway-workshop       │
-│                                 │
-│  ┌───────────────────────────┐  │
-│  │  API Management (Basicv2) │  │
-│  │  - Managed Identity       │  │
-│  │  - Gateway URL            │  │
-│  └───────────────────────────┘  │
-│                                 │
-│  ┌───────────────────────────┐  │
-│  │  Application Insights     │  │
-│  │  + Log Analytics          │  │
-│  └───────────────────────────┘  │
-└─────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  rg-aigateway-workshop                                       │
+│                                                              │
+│  ┌───────────────────────┐       ┌────────────────────────┐  │
+│  │  API Management       │       │  Microsoft Foundry     │  │
+│  │  (Basicv2)            │       │  (AI Services)         │  │
+│  │  - Managed Identity ──┼─RBAC─►│  - gpt-4o-mini         │  │
+│  │  - Gateway URL        │       │  - text-embedding-3    │  │
+│  └───────────────────────┘       │    -small              │  │
+│                                  └────────────────────────┘  │
+│                                                              │
+│  ┌───────────────────────┐       ┌────────────────────────┐  │
+│  │  Application Insights │──────►│  Log Analytics         │  │
+│  │  (Monitoring)         │       │  workspace             │  │
+│  └───────────────────────┘       └────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## References
@@ -131,4 +154,4 @@ After this lab you will have:
 - [APIM Bicep Reference](https://learn.microsoft.com/azure/templates/microsoft.apimanagement/service)
 
 ---
-**Next lab:** [Lab 2 - Azure OpenAI Backend →](../lab-02-add-openai-backend/README.md)
+**Next lab:** [Lab 2 - Microsoft Foundry Backend →](../lab-02-add-openai-backend/README.md)

@@ -17,7 +17,7 @@ param(
     [string]$PublisherName = "AI Gateway Workshop",
 
     [Parameter(Mandatory = $false)]
-    [switch]$EnableSecondaryOpenAi
+    [switch]$EnableSecondaryFoundry
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,7 +55,7 @@ $deployParams = @(
     "--parameters", "location=$Location",
     "--parameters", "apimPublisherEmail=$PublisherEmail",
     "--parameters", "apimPublisherName=$PublisherName",
-    "--parameters", "enableSecondaryOpenAi=$($EnableSecondaryOpenAi.IsPresent.ToString().ToLower())"
+    "--parameters", "enableSecondaryFoundry=$($EnableSecondaryFoundry.IsPresent.ToString().ToLower())"
 )
 
 $deployment = az deployment group create @deployParams --output json | ConvertFrom-Json
@@ -66,31 +66,31 @@ Write-Host "[5/6] Extracting deployment outputs..." -ForegroundColor Yellow
 $outputs = $deployment.properties.outputs
 $gatewayUrl = $outputs.apimGatewayUrl.value
 $apimName = $outputs.apimName.value
-$openAiEndpoint = $outputs.openAiPrimaryEndpoint.value
+$foundryEndpoint = $outputs.foundryPrimaryEndpoint.value
 
 Write-Host "  APIM Gateway URL: $gatewayUrl" -ForegroundColor Green
 Write-Host "  APIM Name: $apimName" -ForegroundColor Green
-Write-Host "  OpenAI Endpoint: $openAiEndpoint" -ForegroundColor Green
+Write-Host "  Foundry Endpoint: $foundryEndpoint" -ForegroundColor Green
 
 # Create APIM backends
 Write-Host "[6/6] Configuring APIM backends..." -ForegroundColor Yellow
 
-# OpenAI chat backend
+# Foundry chat backend
 az apim backend create `
     --resource-group $ResourceGroup `
     --service-name $apimName `
     --backend-id "openai-backend" `
     --protocol "http" `
-    --url "${openAiEndpoint}openai" `
+    --url "${foundryEndpoint}openai" `
     --output none 2>$null
 
-# OpenAI embeddings backend  
+# Foundry embeddings backend  
 az apim backend create `
     --resource-group $ResourceGroup `
     --service-name $apimName `
     --backend-id "embeddings-backend" `
     --protocol "http" `
-    --url "${openAiEndpoint}openai/deployments/text-embedding-3-small" `
+    --url "${foundryEndpoint}openai/deployments/text-embedding-3-small" `
     --output none 2>$null
 
 Write-Host "  Backends configured." -ForegroundColor Green
@@ -105,7 +105,7 @@ Write-Host "  Resource Group:  $ResourceGroup" -ForegroundColor White
 Write-Host "  Location:        $Location" -ForegroundColor White
 Write-Host "  Gateway URL:     $gatewayUrl" -ForegroundColor White
 Write-Host "  APIM Name:       $apimName" -ForegroundColor White
-Write-Host "  OpenAI Endpoint: $openAiEndpoint" -ForegroundColor White
+Write-Host "  Foundry Endpoint: $foundryEndpoint" -ForegroundColor White
 Write-Host ""
 Write-Host "  Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Start with Lab 1: labs/lab-01-deploy-gateway/README.md" -ForegroundColor White

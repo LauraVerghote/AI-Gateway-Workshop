@@ -1,6 +1,6 @@
 // ===========================================================================
 // Main Bicep Template - Azure AI Gateway Workshop
-// Deploys: APIM (Basicv2), Azure OpenAI, Application Insights, RBAC
+// Deploys: APIM (Basicv2), Microsoft Foundry (AI Services), Application Insights, RBAC
 // ===========================================================================
 
 targetScope = 'resourceGroup'
@@ -17,25 +17,25 @@ param apimPublisherEmail string = 'workshop@contoso.com'
 @description('APIM publisher name')
 param apimPublisherName string = 'AI Gateway Workshop'
 
-@description('Azure OpenAI model to deploy')
-param openAiModelName string = 'gpt-4o-mini'
+@description('Chat model to deploy')
+param chatModelName string = 'gpt-4o-mini'
 
-@description('Azure OpenAI model version')
-param openAiModelVersion string = '2024-07-18'
+@description('Chat model version')
+param chatModelVersion string = '2024-07-18'
 
-@description('Azure OpenAI embedding model to deploy')
+@description('Embedding model to deploy')
 param embeddingModelName string = 'text-embedding-3-small'
 
-@description('Azure OpenAI embedding model version')
+@description('Embedding model version')
 param embeddingModelVersion string = '1'
 
-@description('Tokens per minute for OpenAI model (in thousands)')
-param openAiCapacity int = 30
+@description('Tokens per minute for models (in thousands)')
+param modelCapacity int = 30
 
-@description('Enable secondary OpenAI for load balancing lab')
-param enableSecondaryOpenAi bool = false
+@description('Enable secondary Foundry instance for load balancing lab')
+param enableSecondaryFoundry bool = false
 
-@description('Secondary OpenAI location')
+@description('Secondary Foundry location')
 param secondaryLocation string = 'westeurope'
 
 // ===========================================================================
@@ -65,58 +65,58 @@ module apim 'modules/apim.bicep' = {
 }
 
 // ===========================================================================
-// Azure OpenAI (Primary)
+// Microsoft Foundry (Primary)
 // ===========================================================================
-module openAiPrimary 'modules/openai.bicep' = {
-  name: 'deploy-openai-primary'
+module foundryPrimary 'modules/foundry.bicep' = {
+  name: 'deploy-foundry-primary'
   params: {
     location: location
-    name: 'oai-aigateway-${uniqueSuffix}'
-    modelName: openAiModelName
-    modelVersion: openAiModelVersion
+    name: 'ais-aigateway-${uniqueSuffix}'
+    modelName: chatModelName
+    modelVersion: chatModelVersion
     embeddingModelName: embeddingModelName
     embeddingModelVersion: embeddingModelVersion
-    capacity: openAiCapacity
+    capacity: modelCapacity
   }
 }
 
 // ===========================================================================
-// Azure OpenAI (Secondary - for Load Balancing lab)
+// Microsoft Foundry (Secondary - for Load Balancing lab)
 // ===========================================================================
-module openAiSecondary 'modules/openai.bicep' = if (enableSecondaryOpenAi) {
-  name: 'deploy-openai-secondary'
+module foundrySecondary 'modules/foundry.bicep' = if (enableSecondaryFoundry) {
+  name: 'deploy-foundry-secondary'
   params: {
     location: secondaryLocation
-    name: 'oai-aigateway2-${uniqueSuffix}'
-    modelName: openAiModelName
-    modelVersion: openAiModelVersion
+    name: 'ais-aigateway2-${uniqueSuffix}'
+    modelName: chatModelName
+    modelVersion: chatModelVersion
     embeddingModelName: embeddingModelName
     embeddingModelVersion: embeddingModelVersion
-    capacity: openAiCapacity
+    capacity: modelCapacity
   }
 }
 
 // ===========================================================================
-// RBAC: Give APIM Managed Identity access to OpenAI (Primary)
+// RBAC: Give APIM Managed Identity access to Foundry (Primary)
 // ===========================================================================
 module rbacPrimary 'modules/role-assignment.bicep' = {
   name: 'deploy-rbac-primary'
   params: {
     principalId: apim.outputs.principalId
-    cognitiveServicesResourceId: openAiPrimary.outputs.id
+    cognitiveServicesResourceId: foundryPrimary.outputs.id
     // Cognitive Services OpenAI User
     roleDefinitionId: 'a001fd3d-188f-4b5d-821b-7da978bf7442'
   }
 }
 
 // ===========================================================================
-// RBAC: Give APIM access to OpenAI (Secondary)
+// RBAC: Give APIM access to Foundry (Secondary)
 // ===========================================================================
-module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryOpenAi) {
+module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryFoundry) {
   name: 'deploy-rbac-secondary'
   params: {
     principalId: apim.outputs.principalId
-    cognitiveServicesResourceId: enableSecondaryOpenAi ? openAiSecondary.outputs.id : ''
+    cognitiveServicesResourceId: enableSecondaryFoundry ? foundrySecondary.outputs.id : ''
     roleDefinitionId: 'a001fd3d-188f-4b5d-821b-7da978bf7442'
   }
 }
@@ -124,7 +124,7 @@ module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryOpenAi
 @description('Enable APIM API configuration (backend, API import, policy, subscription)')
 param enableApiConfig bool = false
 
-@description('Policy XML content to apply to the Azure OpenAI API')
+@description('Policy XML content to apply to the Microsoft Foundry API')
 param policyXml string = '<policies><inbound><base /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
 
 // ===========================================================================
@@ -135,7 +135,7 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
   name: 'deploy-apim-api'
   params: {
     apimName: apim.outputs.name
-    openAiEndpoint: openAiPrimary.outputs.endpoint
+    foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
   }
   dependsOn: [rbacPrimary]
@@ -147,8 +147,8 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
 output apimGatewayUrl string = apim.outputs.gatewayUrl
 output apimName string = apim.outputs.name
 output apimPrincipalId string = apim.outputs.principalId
-output openAiPrimaryEndpoint string = openAiPrimary.outputs.endpoint
-output openAiPrimaryName string = openAiPrimary.outputs.name
-output openAiSecondaryEndpoint string = enableSecondaryOpenAi ? openAiSecondary.outputs.endpoint : ''
+output foundryPrimaryEndpoint string = foundryPrimary.outputs.endpoint
+output foundryPrimaryName string = foundryPrimary.outputs.name
+output foundrySecondaryEndpoint string = enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
 output appInsightsName string = appInsights.outputs.name
 output appInsightsConnectionString string = appInsights.outputs.connectionString

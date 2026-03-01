@@ -1,14 +1,14 @@
-# Lab 2: Add Azure OpenAI as Backend
+# Lab 2: Add Microsoft Foundry as Backend
 
-> Connect Azure OpenAI to your API Management gateway with managed identity authentication
+> Connect Microsoft Foundry to your API Management gateway with managed identity authentication
 
 ## Goal
 
-In this lab you will configure APIM to act as a gateway in front of Azure OpenAI. By the end, you'll have a working endpoint where clients send requests to APIM, and APIM authenticates to Azure OpenAI using its managed identity — no API keys involved.
+In this lab you will configure APIM to act as a gateway in front of Microsoft Foundry. By the end, you'll have a working endpoint where clients send requests to APIM, and APIM authenticates to Microsoft Foundry using its managed identity — no API keys involved.
 
 Specifically, this lab deploys:
-- An **APIM backend** — tells APIM where Azure OpenAI lives
-- An **API definition** — imports the Azure OpenAI REST API spec so APIM knows the available operations (chat completions, embeddings, etc.)
+- An **APIM backend** — tells APIM where Microsoft Foundry lives
+- An **API definition** — imports the Azure OpenAI-compatible REST API spec so APIM knows the available operations (chat completions, embeddings, etc.). Microsoft Foundry uses the same API format.
 - A **policy** — intercepts every request to get a managed identity token, set the Authorization header, and route to the backend
 - A **subscription** — creates a test API key so you can call the gateway
 
@@ -29,7 +29,7 @@ In this lab, the policy (`policies/managed-identity-auth.xml`) does three things
 2. **`set-header Authorization`** — puts that token in the `Authorization: Bearer <token>` header
 3. **`set-backend-service`** — routes the request to the `openai-backend`
 
-This means clients never need an Azure OpenAI API key — they authenticate to APIM with a subscription key, and APIM handles the Azure OpenAI authentication automatically.
+This means clients never need a Microsoft Foundry API key — they authenticate to APIM with a subscription key, and APIM handles the Microsoft Foundry authentication automatically.
 
 ## Understanding the Bicep
 
@@ -37,18 +37,18 @@ Open `infra/modules/apim-api.bicep` to see the four resources being deployed. He
 
 ### 1. Backend (`openai-backend`)
 ```
-APIM Backend → points to → https://<your-openai>.openai.azure.com/openai
+APIM Backend → points to → https://<your-foundry>.openai.azure.com/openai
 ```
 This tells APIM where to forward requests. When a policy says `set-backend-service backend-id="openai-backend"`, APIM looks up this backend to get the URL.
 
 ### 2. API (`azure-openai-api`)
-Imports the official [Azure OpenAI REST API specification](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/cognitiveservices/data-plane/AzureOpenAI/inference/stable/2024-10-21/inference.json) from Microsoft. This registers all operations (chat completions, embeddings, image generation, etc.) so APIM can validate and route requests correctly. The API is exposed at the `/openai` path on your gateway.
+Imports the official [Azure OpenAI REST API specification](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/cognitiveservices/data-plane/AzureOpenAI/inference/stable/2024-10-21/inference.json) from Microsoft. This registers all operations (chat completions, embeddings, image generation, etc.) so APIM can validate and route requests correctly. The API is exposed at the `/openai` path on your gateway. Microsoft Foundry uses the same OpenAI-compatible API spec.
 
 ### 3. Policy (`managed-identity-auth`)
-The XML content from `policies/managed-identity-auth.xml` is attached to the API. Every request to `/openai/*` passes through this policy before reaching Azure OpenAI.
+The XML content from `policies/managed-identity-auth.xml` is attached to the API. Every request to `/openai/*` passes through this policy before reaching Microsoft Foundry.
 
 ### 4. Subscription (`test-sub`)
-Creates an API key scoped to the Azure OpenAI API. Clients must include this key in the `Ocp-Apim-Subscription-Key` header to call the gateway. This is how APIM controls who can access your AI endpoints.
+Creates an API key scoped to the API. Clients must include this key in the `Ocp-Apim-Subscription-Key` header to call the gateway. This is how APIM controls who can access your AI endpoints.
 
 ## Steps
 
@@ -81,7 +81,7 @@ Before deploying, take a look at the policy that will be applied. Open `policies
 </policies>
 ```
 
-This is what runs on every request to your Azure OpenAI API through APIM.
+This is what runs on every request to your API through APIM.
 
 ### Step 2: Deploy the APIM configuration
 
@@ -112,10 +112,10 @@ This deploys four new resources inside your existing APIM instance:
 
 | Resource | Type | Purpose |
 |----------|------|---------|
-| `openai-backend` | APIM Backend | Points to your Azure OpenAI endpoint |
-| `azure-openai-api` | APIM API | Imports the Azure OpenAI REST API spec |
+| `openai-backend` | APIM Backend | Points to your Microsoft Foundry endpoint |
+| `azure-openai-api` | APIM API | Imports the OpenAI-compatible REST API spec |
 | `policy` | APIM API Policy | Managed identity auth + routing |
-| `test-sub` | APIM Subscription | Test API key scoped to the OpenAI API |
+| `test-sub` | APIM Subscription | Test API key scoped to the API |
 
 > ⏱️ **Note**: This deployment is quick (~1-2 minutes) since APIM is already running.
 
@@ -142,7 +142,7 @@ Write-Host "Subscription Key: $SUB_KEY"
 
 ### Step 4: Test the gateway endpoint
 
-Send a chat completion request through the gateway. This tests the full chain: your request hits APIM, the policy authenticates with managed identity, and the request is forwarded to Azure OpenAI.
+Send a chat completion request through the gateway. This tests the full chain: your request hits APIM, the policy authenticates with managed identity, and the request is forwarded to Microsoft Foundry.
 
 ```powershell
 $body = @{
@@ -174,14 +174,14 @@ usage   : @{prompt_tokens=15; completion_tokens=30; total_tokens=45}
 
 The `choices[0].message.content` field contains the AI's answer. This confirms the full chain is working:
 
-**Client → APIM (subscription key) → Policy (managed identity token) → Azure OpenAI → Response**
+**Client → APIM (subscription key) → Policy (managed identity token) → Microsoft Foundry → Response**
 
 ## Expected result
 
 After this lab you will have:
-- ✅ APIM backend pointing to Azure OpenAI
-- ✅ Azure OpenAI REST API imported into APIM
-- ✅ Managed identity authentication policy (no API keys to Azure OpenAI!)
+- ✅ APIM backend pointing to Microsoft Foundry
+- ✅ Azure OpenAI-compatible REST API imported into APIM
+- ✅ Managed identity authentication policy (no API keys to Microsoft Foundry!)
 - ✅ Test subscription key for calling the gateway
 - ✅ Working chat completion endpoint through the gateway
 
@@ -192,10 +192,10 @@ Client Request
     │
     ▼
 ┌──────────────────────┐     Managed Identity     ┌──────────────────┐
-│  API Management      │ ──────────────────────►  │  Azure OpenAI    │
-│  (Gateway)           │     Bearer Token          │  - gpt-4o-mini   │
-│  - Policy: Auth MI   │ ◄──────────────────────  │  - embeddings    │
-│  - Backend: openai   │     Response              │                  │
+│  API Management      │ ──────────────────►  │  Microsoft       │
+│  (Gateway)           │     Bearer Token          │  Foundry          │
+│  - Policy: Auth MI   │ ◄──────────────────  │  - gpt-4o-mini   │
+│  - Backend: openai   │     Response              │  - embeddings    │
 └──────────────────────┘                           └──────────────────┘
 ```
 

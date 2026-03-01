@@ -15,14 +15,14 @@ In this lab you will:
 Semantic caching compares incoming prompts with previously seen prompts based on **meaning** (not exact match). This can deliver **60-80% cost savings**.
 
 ```
-Prompt 1: "What is the capital of the Netherlands?"     → OpenAI call → Store in cache
-Prompt 2: "What's the capital of NL?"                   → Cache hit!  → No OpenAI call
-Prompt 3: "Which city is the capital of Holland?"        → Cache hit!  → No OpenAI call
+Prompt 1: "What is the capital of the Netherlands?"     → Foundry call  → Store in cache
+Prompt 2: "What's the capital of NL?"                   → Cache hit!    → No Foundry call
+Prompt 3: "Which city is the capital of Holland?"        → Cache hit!    → No Foundry call
 ```
 
 ## Prerequisites
 
-- Azure OpenAI with an **embedding model** (text-embedding-3-small)
+- Microsoft Foundry with an **embedding model** (text-embedding-3-small)
 - This is already deployed if you used `main.bicep`
 
 ## Steps
@@ -32,8 +32,8 @@ Prompt 3: "Which city is the capital of Holland?"        → Cache hit!  → No 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
-$OAI_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[0].name" -o tsv
-$OAI_ENDPOINT = az cognitiveservices account show -n $OAI_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
+$AIS_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[0].name" -o tsv
+$AIS_ENDPOINT = az cognitiveservices account show -n $AIS_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
 
 # Backend for embeddings
 az apim backend create `
@@ -41,7 +41,7 @@ az apim backend create `
   --service-name $APIM_NAME `
   --backend-id "embeddings-backend" `
   --protocol "http" `
-  --url "${OAI_ENDPOINT}openai/deployments/text-embedding-3-small"
+  --url "${AIS_ENDPOINT}openai/deployments/text-embedding-3-small"
 ```
 
 ### Step 2: Apply the Semantic Cache Policy
