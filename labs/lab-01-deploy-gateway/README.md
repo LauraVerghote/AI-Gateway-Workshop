@@ -1,3 +1,4 @@
+
 # Lab 1: Deploy the AI Gateway
 
 > Deploy Azure API Management (Basicv2) as an AI Gateway
@@ -44,6 +45,12 @@ az group create --name $RESOURCE_GROUP --location $LOCATION
 ```
 
 ### Step 3: Deploy the infrastructure
+
+This step uses a Bicep template to deploy the following resources into your resource group:
+
+- **Azure API Management (Basicv2)** — the AI Gateway that will route and manage your API calls
+- **Application Insights + Log Analytics workspace** — for monitoring, logging, and diagnostics
+- **System-assigned Managed Identity** on APIM — used later to authenticate securely to Azure OpenAI without keys
 
 ```powershell
 # Navigate to the infra folder
