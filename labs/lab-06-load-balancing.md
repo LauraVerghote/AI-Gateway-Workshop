@@ -149,7 +149,7 @@ az apim api policy create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
   --api-id "azure-openai-api" `
-  --xml-file "../../policies/load-balancing.xml"
+  --xml-file "../policies/load-balancing.xml"
 
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 $SUB_KEY = az apim subscription show -g $RESOURCE_GROUP --service-name $APIM_NAME --subscription-id "test-sub" --query "primaryKey" -o tsv
@@ -185,5 +185,5 @@ for ($i = 1; $i -le 10; $i++) {
 - [Retry Policy](https://learn.microsoft.com/azure/api-management/retry-policy)
 
 ---
-**Previous lab:** [← Lab 5 - Content Safety](../lab-05-content-safety/README.md)  
-**Next lab:** [Lab 7 - Monitoring →](../lab-07-monitoring/README.md)
+**Previous lab:** [← Lab 5 - Content Safety](lab-05-content-safety.md)  
+**Next lab:** [Lab 7 - Monitoring →](lab-07-monitoring.md)

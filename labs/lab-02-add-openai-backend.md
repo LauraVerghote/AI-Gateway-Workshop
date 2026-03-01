@@ -207,4 +207,4 @@ Client Request
 
 ---
 **Previous lab:** [← Lab 1 - Deploy the Gateway](../lab-01-deploy-gateway/README.md)  
-**Next lab:** [Lab 3 - Token Rate Limiting →](../lab-03-token-rate-limiting/README.md)
+**Next lab:** [Lab 3 - Token Rate Limiting →](lab-03-token-rate-limiting.md)

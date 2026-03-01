@@ -119,7 +119,7 @@ az apim api policy create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
   --api-id "azure-openai-api" `
-  --xml-file "../../policies/content-safety.xml"
+  --xml-file "../policies/content-safety.xml"
 ```
 
 ### Step 6: Test content safety
@@ -184,5 +184,5 @@ try {
 - [Azure AI Content Safety](https://learn.microsoft.com/azure/ai-services/content-safety/)
 
 ---
-**Previous lab:** [← Lab 4 - Semantic Caching](../lab-04-semantic-caching/README.md)  
-**Next lab:** [Lab 6 - Load Balancing →](../lab-06-load-balancing/README.md)
+**Previous lab:** [← Lab 4 - Semantic Caching](lab-04-semantic-caching.md)  
+**Next lab:** [Lab 6 - Load Balancing →](lab-06-load-balancing.md)

@@ -94,7 +94,7 @@ az apim api policy create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
   --api-id "azure-openai-api" `
-  --xml-file "../../policies/semantic-cache.xml"
+  --xml-file "../policies/semantic-cache.xml"
 ```
 
 ### Step 4: Test semantic caching
@@ -171,5 +171,5 @@ Write-Host "Cache: $($response3.Headers['X-Cache-Status'])"
 - [Semantic Caching Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/semantic-caching)
 
 ---
-**Previous lab:** [← Lab 3 - Token Rate Limiting](../lab-03-token-rate-limiting/README.md)  
-**Next lab:** [Lab 5 - Content Safety →](../lab-05-content-safety/README.md)
+**Previous lab:** [← Lab 3 - Token Rate Limiting](lab-03-token-rate-limiting.md)  
+**Next lab:** [Lab 5 - Content Safety →](lab-05-content-safety.md)

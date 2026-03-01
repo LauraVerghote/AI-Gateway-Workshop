@@ -245,7 +245,7 @@ requests
 - [Monitoring Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/zero-to-production)
 
 ---
-**Previous lab:** [← Lab 6 - Load Balancing](../lab-06-load-balancing/README.md)
+**Previous lab:** [← Lab 6 - Load Balancing](lab-06-load-balancing.md)
 
 ---
 

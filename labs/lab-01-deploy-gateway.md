@@ -154,4 +154,4 @@ After this lab you will have:
 - [APIM Bicep Reference](https://learn.microsoft.com/azure/templates/microsoft.apimanagement/service)
 
 ---
-**Next lab:** [Lab 2 - Microsoft Foundry Backend →](../lab-02-add-openai-backend/README.md)
+**Next lab:** [Lab 2 - Foundry Backend →](lab-02-add-openai-backend.md)
