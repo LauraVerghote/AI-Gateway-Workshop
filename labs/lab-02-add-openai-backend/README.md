@@ -54,6 +54,8 @@ Remove-Item backend-body.json
 
 ### Step 3: Import the Azure OpenAI API
 
+This imports Microsoft's official Azure OpenAI REST API specification into APIM. It registers all Azure OpenAI operations (chat completions, embeddings, etc.) so APIM knows how to route and validate requests. In Step 4, we'll attach a policy to this API that handles authentication.
+
 ```powershell
 # Import the OpenAI API specification
 az apim api import `
@@ -78,12 +80,24 @@ The repository already includes a policy file at `policies/managed-identity-auth
 Apply this policy to the imported API:
 
 ```powershell
-# Apply policy to the API
-az apim api policy create `
-  --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --api-id "azure-openai-api" `
-  --xml-file "../../policies/managed-identity-auth.xml"
+# Read the policy XML content
+$policyXml = Get-Content -Path "../policies/managed-identity-auth.xml" -Raw
+
+# Wrap it in the required format and write to a temp file
+@{
+  properties = @{
+    format = "xml"
+    value = $policyXml
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path policy-body.json
+
+# Apply policy to the API via REST API
+az rest --method put `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/azure-openai-api/policies/policy?api-version=2024-05-01" `
+  --body "@policy-body.json"
+
+# Clean up
+Remove-Item policy-body.json
 ```
 
 ### Step 5: Test the gateway endpoint
