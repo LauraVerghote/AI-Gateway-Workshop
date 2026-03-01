@@ -24,16 +24,13 @@ We use **Basicv2** because it deploys quickly, is inexpensive, and supports all 
 
 ### Step 1: Login to Azure
 
+First, authenticate with Azure so you can create and manage resources from the command line:
+
 ```powershell
-# Login to Azure
 az login
-
-# Check your active subscription
-az account show --query "{name:name, id:id}" -o table
-
-# (Optional) Set the correct subscription
-az account set --subscription "<subscription-id>"
 ```
+
+This opens a browser window where you sign in with your Azure account.
 
 ### Step 2: Create a Resource Group
 
