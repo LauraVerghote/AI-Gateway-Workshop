@@ -69,37 +69,13 @@ az apim api import `
 
 ### Step 4: Apply the Managed Identity Policy
 
-Create a policy that uses managed identity instead of API keys:
+The repository already includes a policy file at `policies/managed-identity-auth.xml` that configures APIM to authenticate with Azure OpenAI using its managed identity instead of API keys. Here's what it does:
 
-```xml
-<!-- policies/managed-identity-auth.xml -->
-<policies>
-    <inbound>
-        <base />
-        <!-- Authenticate with APIM managed identity to Azure OpenAI -->
-        <authentication-managed-identity 
-            resource="https://cognitiveservices.azure.com" 
-            output-token-variable-name="managed-id-access-token" 
-            ignore-error="false" />
-        <set-header name="Authorization" exists-action="override">
-            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
-        </set-header>
-        <!-- Route to the OpenAI backend -->
-        <set-backend-service backend-id="openai-backend" />
-    </inbound>
-    <backend>
-        <base />
-    </backend>
-    <outbound>
-        <base />
-    </outbound>
-    <on-error>
-        <base />
-    </on-error>
-</policies>
-```
+- **`authentication-managed-identity`** — requests a token from Entra ID for the `cognitiveservices.azure.com` resource
+- **`set-header Authorization`** — adds the token as a Bearer header to the outgoing request
+- **`set-backend-service`** — routes the request to the `openai-backend` you created in Step 2
 
-Apply the policy via CLI:
+Apply this policy to the imported API:
 
 ```powershell
 # Apply policy to the API
