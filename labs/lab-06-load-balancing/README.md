@@ -1,21 +1,21 @@
-# Lab 6: Load Balancing met Retry
+# Lab 6: Load Balancing with Retry
 
-> Verdeel verkeer over meerdere Azure OpenAI backends met automatische failover
+> Distribute traffic across multiple Azure OpenAI backends with automatic failover
 
-## Doel
+## Goal
 
-In deze lab:
-- Deploy je een **tweede Azure OpenAI** instance (andere regio)
-- Configureer je een **backend pool** in APIM
-- Stel je **automatische retry** in bij 429 (rate limit) of 503 (unavailable)
-- Test je failover door één backend te overbelasten
+In this lab you will:
+- Deploy a **second Azure OpenAI** instance (different region)
+- Configure a **backend pool** in APIM
+- Set up **automatic retry** on 429 (rate limit) or 503 (unavailable)
+- Test failover by overloading one backend
 
-## Achtergrond
+## Background
 
-Load balancing is essentieel wanneer:
-- Je **meer quota** nodig hebt dan één OpenAI instance biedt
-- Je **hoge beschikbaarheid** wilt (multi-region)
-- Je **kosten wilt spreiden** over meerdere instances
+Load balancing is essential when:
+- You **need more quota** than a single OpenAI instance provides
+- You want **high availability** (multi-region)
+- You want to **spread costs** across multiple instances
 
 ```
                     ┌── OpenAI (Sweden Central)  [60% traffic]
@@ -23,14 +23,14 @@ Client → APIM ────►│
                     └── OpenAI (West Europe)     [40% traffic]
 ```
 
-## Stappen
+## Steps
 
-### Stap 1: Deploy de secundaire OpenAI
+### Step 1: Deploy the secondary OpenAI
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 
-# Herdeployment met secondary OpenAI enabled
+# Redeploy with secondary OpenAI enabled
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file ../infra/main.bicep `
@@ -38,16 +38,16 @@ az deployment group create `
   --parameters enableSecondaryOpenAi=true
 ```
 
-### Stap 2: Maak de secundaire backend in APIM
+### Step 2: Create the secondary backend in APIM
 
 ```powershell
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 
-# Haal secondary endpoint op
+# Get secondary endpoint
 $OAI2_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[?contains(name,'oai-aigateway2')].name" -o tsv
 $OAI2_ENDPOINT = az cognitiveservices account show -n $OAI2_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
 
-# Maak secondary backend
+# Create secondary backend
 az apim backend create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -56,9 +56,9 @@ az apim backend create `
   --url "${OAI2_ENDPOINT}openai"
 ```
 
-### Stap 3: Maak een Backend Pool (via ARM/Bicep)
+### Step 3: Create a Backend Pool (via ARM/Bicep)
 
-Backend pools worden geconfigureerd via Bicep. Voeg dit toe:
+Backend pools are configured via Bicep. Add the following:
 
 ```bicep
 // infra/modules/backend-pool.bicep
@@ -103,14 +103,14 @@ resource backendPool 'Microsoft.ApiManagement/service/backends@2024-06-01-previe
 }
 ```
 
-### Stap 4: Pas de Load Balancing Policy toe
+### Step 4: Apply the Load Balancing Policy
 
 ```xml
 <!-- policies/load-balancing.xml -->
 <policies>
     <inbound>
         <base />
-        <!-- Authenticeer met managed identity -->
+        <!-- Authenticate with managed identity -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -118,11 +118,11 @@ resource backendPool 'Microsoft.ApiManagement/service/backends@2024-06-01-previe
         <set-header name="Authorization" exists-action="override">
             <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
         </set-header>
-        <!-- Gebruik de backend pool -->
+        <!-- Use the backend pool -->
         <set-backend-service backend-id="openai-pool" />
     </inbound>
     <backend>
-        <!-- Retry bij 429 (rate limit) of 503 (service unavailable) -->
+        <!-- Retry on 429 (rate limit) or 503 (service unavailable) -->
         <retry count="2" interval="0" first-fast-retry="true" 
             condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
             <set-backend-service backend-id="openai-pool" />
@@ -130,7 +130,7 @@ resource backendPool 'Microsoft.ApiManagement/service/backends@2024-06-01-previe
         </retry>
     </backend>
     <outbound>
-        <!-- Toon welke backend is gebruikt -->
+        <!-- Show which backend was used -->
         <set-header name="X-Backend-Used" exists-action="override">
             <value>@(context.Request.Url.Host)</value>
         </set-header>
@@ -142,7 +142,7 @@ resource backendPool 'Microsoft.ApiManagement/service/backends@2024-06-01-previe
 </policies>
 ```
 
-### Stap 5: Apply en test
+### Step 5: Apply and test
 
 ```powershell
 az apim api policy create `
@@ -154,10 +154,10 @@ az apim api policy create `
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 $SUB_KEY = az apim subscription show -g $RESOURCE_GROUP --service-name $APIM_NAME --subscription-id "test-sub" --query "primaryKey" -o tsv
 
-# Stuur 10 requests en observeer welke backend wordt gebruikt
+# Send 10 requests and observe which backend is used
 for ($i = 1; $i -le 10; $i++) {
     $body = @{
-        messages = @(@{ role = "user"; content = "Hallo! Request nummer $i" })
+        messages = @(@{ role = "user"; content = "Hello! Request number $i" })
         model = "gpt-4o-mini"
         max_tokens = 50
     } | ConvertTo-Json -Depth 5
@@ -172,18 +172,18 @@ for ($i = 1; $i -le 10; $i++) {
 }
 ```
 
-## Verwacht resultaat
+## Expected result
 
-- ✅ Requests worden verdeeld over twee backends (~60/40)
-- ✅ Bij een 429 op backend 1 wordt automatisch backend 2 geprobeerd
-- ✅ De `X-Backend-Used` header toont welke backend is gebruikt
+- ✅ Requests are distributed across two backends (~60/40)
+- ✅ On a 429 from backend 1, backend 2 is automatically tried
+- ✅ The `X-Backend-Used` header shows which backend was used
 
-## Referenties
+## References
 
 - [Backend Pool Load Balancing](https://learn.microsoft.com/azure/api-management/backends?tabs=bicep)
 - [Load Balancing Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/backend-pool-load-balancing)
 - [Retry Policy](https://learn.microsoft.com/azure/api-management/retry-policy)
 
 ---
-**Vorige lab:** [← Lab 5 - Content Safety](../lab-05-content-safety/README.md)  
-**Volgende lab:** [Lab 7 - Monitoring →](../lab-07-monitoring/README.md)
+**Previous lab:** [← Lab 5 - Content Safety](../lab-05-content-safety/README.md)  
+**Next lab:** [Lab 7 - Monitoring →](../lab-07-monitoring/README.md)

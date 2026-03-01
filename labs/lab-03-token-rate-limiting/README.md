@@ -1,35 +1,35 @@
 # Lab 3: Token Rate Limiting
 
-> Beperk het token-verbruik per minuut om kosten te beheersen en misbruik te voorkomen
+> Limit token consumption per minute to control costs and prevent abuse
 
-## Doel
+## Goal
 
-In deze lab:
-- Configureer je **token rate limiting** per subscription
-- Test je dat requests worden geblokkeerd bij overschrijding (HTTP 429)
-- Leer je de `remainingTokens` response header lezen
-- Experimenteer je met verschillende limieten
+In this lab you will:
+- Configure **token rate limiting** per subscription
+- Test that requests are blocked when the limit is exceeded (HTTP 429)
+- Learn to read the `remainingTokens` response header
+- Experiment with different limits
 
-## Achtergrond
+## Background
 
-Token rate limiting is cruciaal voor AI Gateway scenarios:
+Token rate limiting is crucial for AI Gateway scenarios:
 
-| Probleem | Oplossing |
-|----------|-----------|
-| Eén gebruiker verbruikt al je quota | Limiet per subscription/IP |
-| Onverwacht hoge kosten | Hard token maximum per minuut |
-| DDoS/misbruik | Automatische blokkering bij overschrijding |
+| Problem | Solution |
+|---------|----------|
+| One user consumes all your quota | Limit per subscription/IP |
+| Unexpectedly high costs | Hard token maximum per minute |
+| DDoS/abuse | Automatic blocking when limit is exceeded |
 
-## Stappen
+## Steps
 
-### Stap 1: Pas de Token Rate Limit Policy toe
+### Step 1: Apply the Token Rate Limit Policy
 
 ```xml
 <!-- policies/token-rate-limit.xml -->
 <policies>
     <inbound>
         <base />
-        <!-- Authenticeer met managed identity -->
+        <!-- Authenticate with managed identity -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -39,7 +39,7 @@ Token rate limiting is cruciaal voor AI Gateway scenarios:
         </set-header>
         <set-backend-service backend-id="openai-backend" />
         
-        <!-- Token rate limiting: max 500 tokens per minuut per subscription -->
+        <!-- Token rate limiting: max 500 tokens per minute per subscription -->
         <azure-openai-token-limit 
             counter-key="@(context.Subscription.Id)"
             tokens-per-minute="500" 
@@ -50,7 +50,7 @@ Token rate limiting is cruciaal voor AI Gateway scenarios:
         <base />
     </backend>
     <outbound>
-        <!-- Toon remaining tokens in response header -->
+        <!-- Show remaining tokens in response header -->
         <set-header name="X-Tokens-Remaining" exists-action="override">
             <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
         </set-header>
@@ -62,7 +62,7 @@ Token rate limiting is cruciaal voor AI Gateway scenarios:
 </policies>
 ```
 
-### Stap 2: Apply de policy
+### Step 2: Apply the policy
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
@@ -75,18 +75,18 @@ az apim api policy create `
   --xml-file "../../policies/token-rate-limit.xml"
 ```
 
-### Stap 3: Test de rate limiting
+### Step 3: Test the rate limiting
 
 ```powershell
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 $SUB_KEY = az apim subscription show -g $RESOURCE_GROUP --service-name $APIM_NAME --subscription-id "test-sub" --query "primaryKey" -o tsv
 
-# Stuur meerdere requests om de limiet te bereiken
+# Send multiple requests to reach the limit
 for ($i = 1; $i -le 5; $i++) {
     Write-Host "`n--- Request $i ---" -ForegroundColor Cyan
     
     $body = @{
-        messages = @(@{ role = "user"; content = "Schrijf een lang verhaal over Azure." })
+        messages = @(@{ role = "user"; content = "Write a long story about Azure." })
         model = "gpt-4o-mini"
         max_tokens = 200
     } | ConvertTo-Json -Depth 5
@@ -107,35 +107,35 @@ for ($i = 1; $i -le 5; $i++) {
     catch {
         Write-Host "Status: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Red
         if ($_.Exception.Response.StatusCode.value__ -eq 429) {
-            Write-Host "Rate limit bereikt! ✅ Werkt correct." -ForegroundColor Yellow
+            Write-Host "Rate limit reached! ✅ Working correctly." -ForegroundColor Yellow
         }
     }
 }
 ```
 
-### Stap 4: Experimenteer met parameters
+### Step 4: Experiment with parameters
 
-Pas de policy aan en test:
+Adjust the policy and test:
 
-| Parameter | Waarde | Effect |
-|-----------|--------|--------|
-| `tokens-per-minute` | 100 | Zeer restrictief - snel 429 |
-| `tokens-per-minute` | 5000 | Normaal gebruik |
-| `tokens-per-minute` | 50000 | Hoog volume |
-| `estimate-prompt-tokens` | true | Sneller maar minder nauwkeurig |
-| `counter-key` | `Request.IpAddress` | Limiet per IP i.p.v. subscription |
+| Parameter | Value | Effect |
+|-----------|-------|--------|
+| `tokens-per-minute` | 100 | Very restrictive - quick 429 |
+| `tokens-per-minute` | 5000 | Normal usage |
+| `tokens-per-minute` | 50000 | High volume |
+| `estimate-prompt-tokens` | true | Faster but less accurate |
+| `counter-key` | `Request.IpAddress` | Limit per IP instead of subscription |
 
-## Verwacht resultaat
+## Expected result
 
-- ✅ Eerste requests slagen (HTTP 200) met `X-Tokens-Remaining` header
-- ✅ Na overschrijding krijg je HTTP 429 (Too Many Requests)
-- ✅ Na 1 minuut reset de counter en kun je weer requests doen
+- ✅ First requests succeed (HTTP 200) with `X-Tokens-Remaining` header
+- ✅ After exceeding the limit you get HTTP 429 (Too Many Requests)
+- ✅ After 1 minute the counter resets and you can make requests again
 
-## Referenties
+## References
 
 - [Azure OpenAI Token Limit Policy](https://learn.microsoft.com/azure/api-management/azure-openai-token-limit-policy)
 - [Token Rate Limiting Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/token-rate-limiting)
 
 ---
-**Vorige lab:** [← Lab 2 - OpenAI Backend](../lab-02-add-openai-backend/README.md)  
-**Volgende lab:** [Lab 4 - Semantic Caching →](../lab-04-semantic-caching/README.md)
+**Previous lab:** [← Lab 2 - OpenAI Backend](../lab-02-add-openai-backend/README.md)  
+**Next lab:** [Lab 4 - Semantic Caching →](../lab-04-semantic-caching/README.md)

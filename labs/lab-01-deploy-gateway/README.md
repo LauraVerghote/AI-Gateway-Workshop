@@ -1,78 +1,78 @@
-# Lab 1: Deploy de AI Gateway
+# Lab 1: Deploy the AI Gateway
 
-> Deploying van Azure API Management (Basicv2) als AI Gateway
+> Deploy Azure API Management (Basicv2) as an AI Gateway
 
-## Doel
+## Goal
 
-In deze lab deploy je:
-- Een **resource group** voor alle workshop resources
-- **Azure API Management** met het Basicv2 SKU
-- **Application Insights** voor monitoring
+In this lab you will deploy:
+- A **resource group** for all workshop resources
+- **Azure API Management** with the Basicv2 SKU
+- **Application Insights** for monitoring
 
-## Waarom Basicv2?
+## Why Basicv2?
 
-| SKU | Deployment tijd | Kosten | AI Gateway support |
-|-----|----------------|--------|-------------------|
-| Developer | ~30 min | Laag | ✅ |
-| **Basicv2** | **~5-10 min** | **Laag** | **✅** |
+| SKU | Deployment time | Cost | AI Gateway support |
+|-----|-----------------|------|--------------------|
+| Developer | ~30 min | Low | ✅ |
+| **Basicv2** | **~5-10 min** | **Low** | **✅** |
 | Standardv2 | ~10 min | Medium | ✅ |
-| Premium | ~45 min | Hoog | ✅ |
+| Premium | ~45 min | High | ✅ |
 
-We gebruiken **Basicv2** omdat het snel deployt, goedkoop is, en alle AI Gateway features ondersteunt.
+We use **Basicv2** because it deploys quickly, is inexpensive, and supports all AI Gateway features.
 
-## Stappen
+## Steps
 
-### Stap 1: Login bij Azure
+### Step 1: Login to Azure
 
 ```powershell
-# Login bij Azure
+# Login to Azure
 az login
 
-# Controleer je actieve subscription
+# Check your active subscription
 az account show --query "{name:name, id:id}" -o table
 
-# (Optioneel) Stel de juiste subscription in
+# (Optional) Set the correct subscription
 az account set --subscription "<subscription-id>"
 ```
 
-### Stap 2: Maak een Resource Group
+### Step 2: Create a Resource Group
 
 ```powershell
-# Variabelen instellen
+# Set variables
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 $LOCATION = "swedencentral"
 
-# Resource group aanmaken
+# Create resource group
 az group create --name $RESOURCE_GROUP --location $LOCATION
 ```
 
-### Stap 3: Deploy de infrastructuur
+### Step 3: Deploy the infrastructure
 
 ```powershell
-# Navigeer naar de infra folder
+# Navigate to the infra folder
 cd infra
 
-# Deploy alleen APIM + Application Insights
+# Deploy only APIM + Application Insights
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file main.bicep `
   --parameters location=$LOCATION `
-  --parameters apimPublisherEmail="jouw-email@domein.com" `
-  --parameters apimPublisherName="Workshop Deelnemer"
+  --parameters apimPublisherEmail="your-email@domain.com" `
+  --parameters apimPublisherName="Workshop Participant"
 ```
 
-> ⏱️ **Let op**: De deployment duurt ~5-10 minuten voor Basicv2.
+> ⏱️ **Note**: The deployment takes ~5-10 minutes for Basicv2.
 
-### Stap 4: Verifieer de deployment
+### Step 4: Verify the deployment
 
 ```powershell
-# Haal de APIM gateway URL op
+# Get the APIM gateway URL
 az deployment group show `
   --resource-group $RESOURCE_GROUP `
   --name deploy-apim `
   --query "properties.outputs" -o json
 
-# Test of APIM bereikbaar is
+# Test if APIM is reachable
 $GATEWAY_URL = az apim show `
   --name (az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv) `
   --resource-group $RESOURCE_GROUP `
@@ -81,15 +81,15 @@ $GATEWAY_URL = az apim show `
 Write-Host "Gateway URL: $GATEWAY_URL"
 ```
 
-## Verwacht resultaat
+## Expected result
 
-Na deze lab heb je:
-- ✅ Een resource group `rg-aigateway-workshop`
-- ✅ API Management (Basicv2) draaiend met een gateway URL
-- ✅ Application Insights voor logging en monitoring
-- ✅ System-assigned managed identity op APIM
+After this lab you will have:
+- ✅ A resource group `rg-aigateway-workshop`
+- ✅ API Management (Basicv2) running with a gateway URL
+- ✅ Application Insights for logging and monitoring
+- ✅ System-assigned managed identity on APIM
 
-## Architectuur
+## Architecture
 
 ```
 ┌─────────────────────────────────┐
@@ -108,10 +108,10 @@ Na deze lab heb je:
 └─────────────────────────────────┘
 ```
 
-## Referenties
+## References
 
 - [APIM Basicv2 SKU](https://learn.microsoft.com/azure/api-management/v2-service-tiers-overview)
 - [APIM Bicep Reference](https://learn.microsoft.com/azure/templates/microsoft.apimanagement/service)
 
 ---
-**Volgende lab:** [Lab 2 - Azure OpenAI Backend →](../lab-02-add-openai-backend/README.md)
+**Next lab:** [Lab 2 - Azure OpenAI Backend →](../lab-02-add-openai-backend/README.md)

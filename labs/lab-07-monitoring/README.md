@@ -1,40 +1,40 @@
 # Lab 7: Monitoring & Token Metrics
 
-> Stel monitoring in met Application Insights en volg token-verbruik per subscription
+> Set up monitoring with Application Insights and track token consumption per subscription
 
-## Doel
+## Goal
 
-In deze lab:
-- Configureer je **token metrics** met `azure-openai-emit-token-metric`
-- Bekijk je token-verbruik in **Application Insights**
-- Stel je **LLM request logging** in
-- Bouw je een **KQL query** voor een token usage dashboard
+In this lab you will:
+- Configure **token metrics** with `azure-openai-emit-token-metric`
+- View token consumption in **Application Insights**
+- Set up **LLM request logging**
+- Build a **KQL query** for a token usage dashboard
 
-## Achtergrond
+## Background
 
-Monitoring is cruciaal voor productie AI Gateways:
+Monitoring is crucial for production AI Gateways:
 
-| Metric | Beschrijving |
+| Metric | Description |
 |--------|-------------|
-| Prompt tokens | Tokens in de input |
-| Completion tokens | Tokens in de output |
-| Total tokens | Totaal verbruik |
-| Tokens per subscription | Verbruik per klant/team |
-| Cache hit ratio | Effectiviteit van semantic caching |
+| Prompt tokens | Tokens in the input |
+| Completion tokens | Tokens in the output |
+| Total tokens | Total consumption |
+| Tokens per subscription | Consumption per customer/team |
+| Cache hit ratio | Effectiveness of semantic caching |
 
-## Stappen
+## Steps
 
-### Stap 1: Pas de Monitoring Policy toe
+### Step 1: Apply the Monitoring Policy
 
-Deze policy combineert **alle voorgaande labs** met monitoring:
+This policy combines **all previous labs** with monitoring:
 
 ```xml
-<!-- Finale productie-policy: combinatie van alle labs -->
+<!-- Final production policy: combination of all labs -->
 <policies>
     <inbound>
         <base />
         
-        <!-- 1. Managed Identity authenticatie -->
+        <!-- 1. Managed Identity authentication -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -74,7 +74,7 @@ Deze policy combineert **alle voorgaande labs** met monitoring:
         <!-- Cache store -->
         <azure-openai-semantic-cache-store duration="120" />
         
-        <!-- Response headers voor debugging -->
+        <!-- Response headers for debugging -->
         <set-header name="X-Tokens-Remaining" exists-action="override">
             <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
         </set-header>
@@ -86,13 +86,13 @@ Deze policy combineert **alle voorgaande labs** met monitoring:
 </policies>
 ```
 
-### Stap 2: Schakel LLM Request Logging in
+### Step 2: Enable LLM Request Logging
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 
-# Diagnostic settings voor de API
+# Diagnostic settings for the API
 az apim api diagnostic create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -103,7 +103,7 @@ az apim api diagnostic create `
   --always-log "allErrors"
 ```
 
-### Stap 3: Genereer test-verkeer
+### Step 3: Generate test traffic
 
 ```powershell
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
@@ -114,21 +114,21 @@ $headers = @{
     "Content-Type" = "application/json" 
 }
 
-$vragen = @(
-    "Wat is Azure API Management?",
-    "Leg uit hoe semantic caching werkt.",
-    "Wat zijn de voordelen van load balancing?",
-    "Hoe werkt token rate limiting?",
-    "Wat is een managed identity?",
-    "Beschrijf de AI Gateway architectuur.",
-    "Wat is Azure API Management?",   # Duplicate voor cache test
-    "Hoe werkt semantic caching?"      # Similar voor cache test
+$questions = @(
+    "What is Azure API Management?",
+    "Explain how semantic caching works.",
+    "What are the benefits of load balancing?",
+    "How does token rate limiting work?",
+    "What is a managed identity?",
+    "Describe the AI Gateway architecture.",
+    "What is Azure API Management?",      # Duplicate for cache test
+    "How does semantic caching work?"      # Similar for cache test
 )
 
-foreach ($vraag in $vragen) {
-    Write-Host "Vraag: $vraag" -ForegroundColor Cyan
+foreach ($question in $questions) {
+    Write-Host "Question: $question" -ForegroundColor Cyan
     $body = @{
-        messages = @(@{ role = "user"; content = $vraag })
+        messages = @(@{ role = "user"; content = $question })
         model = "gpt-4o-mini"
         max_tokens = 100
     } | ConvertTo-Json -Depth 5
@@ -145,23 +145,23 @@ foreach ($vraag in $vragen) {
 }
 ```
 
-### Stap 4: Bekijk metrics in Application Insights
+### Step 4: View metrics in Application Insights
 
-Open de Azure Portal en navigeer naar Application Insights:
+Open the Azure Portal and navigate to Application Insights:
 
 1. **Application Insights** → **Metrics**
 2. Metric namespace: **AIGateway** (custom namespace)
-3. Beschikbare metrics:
+3. Available metrics:
    - `Prompt Token Count`
    - `Completion Token Count`
    - `Total Token Count`
 4. Split by: `Subscription ID`, `Model`, `API ID`
 
-### Stap 5: KQL Queries voor dashboards
+### Step 5: KQL Queries for dashboards
 
-Open **Application Insights → Logs** en voer deze queries uit:
+Open **Application Insights → Logs** and run these queries:
 
-#### Token verbruik per uur
+#### Token consumption per hour
 
 ```kql
 customMetrics
@@ -170,7 +170,7 @@ customMetrics
 | render timechart
 ```
 
-#### Top 10 subscription per token-verbruik
+#### Top 10 subscriptions by token consumption
 
 ```kql
 customMetrics
@@ -190,7 +190,7 @@ requests
 | render piechart
 ```
 
-#### Errors en rate limits
+#### Errors and rate limits
 
 ```kql
 requests
@@ -199,14 +199,14 @@ requests
 | render timechart
 ```
 
-## Verwacht resultaat
+## Expected result
 
-- ✅ Token metrics zichtbaar in Application Insights
-- ✅ Custom dimensions (Subscription ID, Model) beschikbaar voor filtering
-- ✅ KQL queries tonen token-verbruik patronen
-- ✅ Cache hits vs misses zijn meetbaar
+- ✅ Token metrics visible in Application Insights
+- ✅ Custom dimensions (Subscription ID, Model) available for filtering
+- ✅ KQL queries show token consumption patterns
+- ✅ Cache hits vs misses are measurable
 
-## Architectuur (Compleet)
+## Architecture (Complete)
 
 ```
                                     ┌─────────────────────┐
@@ -237,25 +237,25 @@ requests
               └─────────────────┘ └─────────────────┘
 ```
 
-## Referenties
+## References
 
 - [Token Metrics Policy](https://learn.microsoft.com/azure/api-management/azure-openai-emit-token-metric-policy)
 - [LLM Logs & Token Limits](https://learn.microsoft.com/azure/api-management/api-management-howto-llm-logs)
 - [Monitoring Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/zero-to-production)
 
 ---
-**Vorige lab:** [← Lab 6 - Load Balancing](../lab-06-load-balancing/README.md)
+**Previous lab:** [← Lab 6 - Load Balancing](../lab-06-load-balancing/README.md)
 
 ---
 
-## 🎉 Gefeliciteerd!
+## 🎉 Congratulations!
 
-Je hebt de volledige AI Gateway Workshop afgerond! Je hebt nu een productie-klare AI Gateway met:
+You have completed the full AI Gateway Workshop! You now have a production-ready AI Gateway with:
 
-- ✅ API Management als centraal toegangspunt
-- ✅ Managed identity authenticatie (geen API keys)
-- ✅ Token rate limiting voor kostenbeheer
-- ✅ Semantic caching voor kostenbesparing
-- ✅ Content safety voor veilige AI
-- ✅ Load balancing voor hoge beschikbaarheid
-- ✅ Monitoring met Application Insights
+- ✅ API Management as a central access point
+- ✅ Managed identity authentication (no API keys)
+- ✅ Token rate limiting for cost control
+- ✅ Semantic caching for cost savings
+- ✅ Content safety for safe AI
+- ✅ Load balancing for high availability
+- ✅ Monitoring with Application Insights

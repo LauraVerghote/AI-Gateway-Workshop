@@ -1,33 +1,33 @@
 # Lab 4: Semantic Caching
 
-> Cache vergelijkbare prompts om kosten te verlagen en latency te verbeteren
+> Cache similar prompts to reduce costs and improve latency
 
-## Doel
+## Goal
 
-In deze lab:
-- Configureer je **semantic caching** met een embedding model
-- Test je dat vergelijkbare vragen dezelfde cached response opleveren
-- Meet je de **kostenbesparing** en **latency verbetering**
-- Experimenteer je met de `score-threshold` parameter
+In this lab you will:
+- Configure **semantic caching** with an embedding model
+- Test that similar questions return the same cached response
+- Measure the **cost savings** and **latency improvement**
+- Experiment with the `score-threshold` parameter
 
-## Achtergrond
+## Background
 
-Semantic caching vergelijkt binnenkomende prompts met eerder geziene prompts op basis van **betekenis** (niet exact match). Dit kan **60-80% kostenbesparing** opleveren.
+Semantic caching compares incoming prompts with previously seen prompts based on **meaning** (not exact match). This can deliver **60-80% cost savings**.
 
 ```
-Prompt 1: "Wat is de hoofdstad van Nederland?"     → OpenAI call → Cache opslaan
-Prompt 2: "Wat is de hoofdstad van NL?"             → Cache hit!  → Geen OpenAI call
-Prompt 3: "Welke stad is de hoofdstad van Holland?"  → Cache hit!  → Geen OpenAI call
+Prompt 1: "What is the capital of the Netherlands?"     → OpenAI call → Store in cache
+Prompt 2: "What's the capital of NL?"                   → Cache hit!  → No OpenAI call
+Prompt 3: "Which city is the capital of Holland?"        → Cache hit!  → No OpenAI call
 ```
 
-## Vereisten
+## Prerequisites
 
-- Azure OpenAI met een **embedding model** (text-embedding-3-small)
-- Dit is al gedeployed als je `main.bicep` hebt gebruikt
+- Azure OpenAI with an **embedding model** (text-embedding-3-small)
+- This is already deployed if you used `main.bicep`
 
-## Stappen
+## Steps
 
-### Stap 1: Maak een Embedding Backend in APIM
+### Step 1: Create an Embedding Backend in APIM
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
@@ -35,7 +35,7 @@ $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $OAI_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $OAI_ENDPOINT = az cognitiveservices account show -n $OAI_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
 
-# Backend voor embeddings
+# Backend for embeddings
 az apim backend create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -44,14 +44,14 @@ az apim backend create `
   --url "${OAI_ENDPOINT}openai/deployments/text-embedding-3-small"
 ```
 
-### Stap 2: Pas de Semantic Cache Policy toe
+### Step 2: Apply the Semantic Cache Policy
 
 ```xml
 <!-- policies/semantic-cache.xml -->
 <policies>
     <inbound>
         <base />
-        <!-- Authenticeer met managed identity -->
+        <!-- Authenticate with managed identity -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -72,10 +72,10 @@ az apim backend create `
         <base />
     </backend>
     <outbound>
-        <!-- Sla response op in cache (120 seconden) -->
+        <!-- Store response in cache (120 seconds) -->
         <azure-openai-semantic-cache-store duration="120" />
 
-        <!-- Voeg cache status header toe -->
+        <!-- Add cache status header -->
         <set-header name="X-Cache-Status" exists-action="override">
             <value>@(context.Response.Headers.ContainsKey("x-]]ms-apim-cache-hit") ? "HIT" : "MISS")</value>
         </set-header>
@@ -87,7 +87,7 @@ az apim backend create `
 </policies>
 ```
 
-### Stap 3: Apply de policy
+### Step 3: Apply the policy
 
 ```powershell
 az apim api policy create `
@@ -97,7 +97,7 @@ az apim api policy create `
   --xml-file "../../policies/semantic-cache.xml"
 ```
 
-### Stap 4: Test semantic caching
+### Step 4: Test semantic caching
 
 ```powershell
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
@@ -108,10 +108,10 @@ $headers = @{
     "Content-Type" = "application/json" 
 }
 
-# Request 1: Originele vraag (CACHE MISS)
-Write-Host "`n--- Request 1: Origineel ---" -ForegroundColor Cyan
+# Request 1: Original question (CACHE MISS)
+Write-Host "`n--- Request 1: Original ---" -ForegroundColor Cyan
 $body1 = @{
-    messages = @(@{ role = "user"; content = "Wat is de hoofdstad van Nederland?" })
+    messages = @(@{ role = "user"; content = "What is the capital of the Netherlands?" })
     model = "gpt-4o-mini"
 } | ConvertTo-Json -Depth 5
 
@@ -123,10 +123,10 @@ Write-Host "Cache: $($response1.Headers['X-Cache-Status'])"
 
 Start-Sleep -Seconds 2
 
-# Request 2: Vergelijkbare vraag (CACHE HIT verwacht)
-Write-Host "`n--- Request 2: Vergelijkbaar ---" -ForegroundColor Cyan
+# Request 2: Similar question (CACHE HIT expected)
+Write-Host "`n--- Request 2: Similar ---" -ForegroundColor Cyan
 $body2 = @{
-    messages = @(@{ role = "user"; content = "Wat is de hoofdstad van NL?" })
+    messages = @(@{ role = "user"; content = "What's the capital of NL?" })
     model = "gpt-4o-mini"
 } | ConvertTo-Json -Depth 5
 
@@ -136,10 +136,10 @@ $sw.Stop()
 Write-Host "Latency: $($sw.ElapsedMilliseconds)ms"
 Write-Host "Cache: $($response2.Headers['X-Cache-Status'])"
 
-# Request 3: Geheel andere vraag (CACHE MISS verwacht)
-Write-Host "`n--- Request 3: Andere vraag ---" -ForegroundColor Cyan
+# Request 3: Completely different question (CACHE MISS expected)
+Write-Host "`n--- Request 3: Different question ---" -ForegroundColor Cyan
 $body3 = @{
-    messages = @(@{ role = "user"; content = "Hoeveel inwoners heeft Japan?" })
+    messages = @(@{ role = "user"; content = "How many inhabitants does Japan have?" })
     model = "gpt-4o-mini"
 } | ConvertTo-Json -Depth 5
 
@@ -150,26 +150,26 @@ Write-Host "Latency: $($sw.ElapsedMilliseconds)ms"
 Write-Host "Cache: $($response3.Headers['X-Cache-Status'])"
 ```
 
-### Stap 5: Experimenteer met score-threshold
+### Step 5: Experiment with score-threshold
 
-| Score Threshold | Gedrag |
-|----------------|--------|
-| 0.7 | Veel cache hits, minder nauwkeurig |
-| **0.8** | **Balans (aanbevolen)** |
-| 0.9 | Weinig cache hits, zeer nauwkeurig |
-| 0.95 | Bijna exact match nodig |
+| Score Threshold | Behavior |
+|----------------|----------|
+| 0.7 | Many cache hits, less accurate |
+| **0.8** | **Balanced (recommended)** |
+| 0.9 | Few cache hits, very accurate |
+| 0.95 | Near exact match required |
 
-## Verwacht resultaat
+## Expected result
 
-- ✅ Request 1: Cache MISS, hogere latency (~500-2000ms)
-- ✅ Request 2: Cache HIT, lagere latency (~50-200ms), zelfde response
-- ✅ Request 3: Cache MISS, nieuwe vraag wordt niet gecached
+- ✅ Request 1: Cache MISS, higher latency (~500-2000ms)
+- ✅ Request 2: Cache HIT, lower latency (~50-200ms), same response
+- ✅ Request 3: Cache MISS, new question is not cached
 
-## Referenties
+## References
 
 - [Semantic Caching Docs](https://learn.microsoft.com/azure/api-management/azure-openai-enable-semantic-caching)
 - [Semantic Caching Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/semantic-caching)
 
 ---
-**Vorige lab:** [← Lab 3 - Token Rate Limiting](../lab-03-token-rate-limiting/README.md)  
-**Volgende lab:** [Lab 5 - Content Safety →](../lab-05-content-safety/README.md)
+**Previous lab:** [← Lab 3 - Token Rate Limiting](../lab-03-token-rate-limiting/README.md)  
+**Next lab:** [Lab 5 - Content Safety →](../lab-05-content-safety/README.md)

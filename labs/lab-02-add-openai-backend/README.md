@@ -1,39 +1,39 @@
-# Lab 2: Azure OpenAI als Backend toevoegen
+# Lab 2: Add Azure OpenAI as Backend
 
-> Koppel Azure OpenAI aan je API Management gateway met managed identity authenticatie
+> Connect Azure OpenAI to your API Management gateway with managed identity authentication
 
-## Doel
+## Goal
 
-In deze lab:
-- Deploy je **Azure OpenAI** met een GPT-4o-mini en embedding model
-- Configureer je een **APIM backend** die naar Azure OpenAI wijst
-- Stel je **managed identity authenticatie** in (geen API keys!)
-- Importeer je de **Azure OpenAI API** in APIM
-- Test je de gateway met een chat completion request
+In this lab you will:
+- Deploy **Azure OpenAI** with a GPT-4o-mini and embedding model
+- Configure an **APIM backend** that points to Azure OpenAI
+- Set up **managed identity authentication** (no API keys!)
+- Import the **Azure OpenAI API** into APIM
+- Test the gateway with a chat completion request
 
-## Stappen
+## Steps
 
-### Stap 1: Deploy Azure OpenAI (als nog niet gedaan)
+### Step 1: Deploy Azure OpenAI (if not already done)
 
-Als je in Lab 1 de volledige `main.bicep` hebt gedeployed, is OpenAI al beschikbaar. Anders:
+If you deployed the full `main.bicep` in Lab 1, OpenAI is already available. Otherwise:
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
 
-# Deploy alles (inclusief OpenAI)
+# Deploy everything (including OpenAI)
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file ../infra/main.bicep `
   --parameters ../infra/main.bicepparam
 ```
 
-### Stap 2: Haal namen en endpoints op
+### Step 2: Retrieve names and endpoints
 
 ```powershell
-# APIM naam ophalen
+# Get APIM name
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 
-# OpenAI endpoint ophalen
+# Get OpenAI endpoint
 $OAI_NAME = az cognitiveservices account list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $OAI_ENDPOINT = az cognitiveservices account show -n $OAI_NAME -g $RESOURCE_GROUP --query "properties.endpoint" -o tsv
 
@@ -42,10 +42,10 @@ Write-Host "OpenAI Name: $OAI_NAME"
 Write-Host "OpenAI Endpoint: $OAI_ENDPOINT"
 ```
 
-### Stap 3: Maak een APIM Backend voor Azure OpenAI
+### Step 3: Create an APIM Backend for Azure OpenAI
 
 ```powershell
-# Backend aanmaken in APIM
+# Create backend in APIM
 az apim backend create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -54,10 +54,10 @@ az apim backend create `
   --url "${OAI_ENDPOINT}openai"
 ```
 
-### Stap 4: Importeer de Azure OpenAI API
+### Step 4: Import the Azure OpenAI API
 
 ```powershell
-# Importeer de OpenAI API specificatie
+# Import the OpenAI API specification
 az apim api import `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -69,16 +69,16 @@ az apim api import `
   --subscription-required true
 ```
 
-### Stap 5: Pas de Managed Identity Policy toe
+### Step 5: Apply the Managed Identity Policy
 
-Maak een policy die managed identity gebruikt in plaats van API keys:
+Create a policy that uses managed identity instead of API keys:
 
 ```xml
 <!-- policies/managed-identity-auth.xml -->
 <policies>
     <inbound>
         <base />
-        <!-- Authenticate met APIM managed identity naar Azure OpenAI -->
+        <!-- Authenticate with APIM managed identity to Azure OpenAI -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -86,7 +86,7 @@ Maak een policy die managed identity gebruikt in plaats van API keys:
         <set-header name="Authorization" exists-action="override">
             <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
         </set-header>
-        <!-- Routeer naar de OpenAI backend -->
+        <!-- Route to the OpenAI backend -->
         <set-backend-service backend-id="openai-backend" />
     </inbound>
     <backend>
@@ -101,10 +101,10 @@ Maak een policy die managed identity gebruikt in plaats van API keys:
 </policies>
 ```
 
-Pas de policy toe via CLI:
+Apply the policy via CLI:
 
 ```powershell
-# Policy toepassen op de API
+# Apply policy to the API
 az apim api policy create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -112,13 +112,13 @@ az apim api policy create `
   --xml-file "../../policies/managed-identity-auth.xml"
 ```
 
-### Stap 6: Test het gateway endpoint
+### Step 6: Test the gateway endpoint
 
 ```powershell
-# Haal de gateway URL op
+# Get the gateway URL
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 
-# Maak een subscription key aan voor testen
+# Create a subscription key for testing
 az apim subscription create `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
@@ -126,19 +126,19 @@ az apim subscription create `
   --display-name "Test Subscription" `
   --scope "/apis/azure-openai-api"
 
-# Haal de subscription key op
+# Get the subscription key
 $SUB_KEY = az apim subscription show `
   --resource-group $RESOURCE_GROUP `
   --service-name $APIM_NAME `
   --subscription-id "test-sub" `
   --query "primaryKey" -o tsv
 
-# Test met een chat completion request
+# Test with a chat completion request
 $body = @{
     messages = @(
         @{
             role = "user"
-            content = "Wat is Azure API Management in 1 zin?"
+            content = "What is Azure API Management in one sentence?"
         }
     )
     model = "gpt-4o-mini"
@@ -151,16 +151,16 @@ Invoke-RestMethod `
   -Body $body
 ```
 
-## Verwacht resultaat
+## Expected result
 
-Na deze lab heb je:
-- ✅ Azure OpenAI met GPT-4o-mini model gedeployed
-- ✅ APIM backend die naar Azure OpenAI wijst
-- ✅ Managed identity authenticatie (geen API keys!)
-- ✅ OpenAI API geïmporteerd in APIM
-- ✅ Werkend chat completion endpoint via de gateway
+After this lab you will have:
+- ✅ Azure OpenAI with GPT-4o-mini model deployed
+- ✅ APIM backend pointing to Azure OpenAI
+- ✅ Managed identity authentication (no API keys!)
+- ✅ OpenAI API imported into APIM
+- ✅ Working chat completion endpoint through the gateway
 
-## Architectuur
+## Architecture
 
 ```
 Client Request
@@ -174,12 +174,12 @@ Client Request
 └──────────────────────┘                           └──────────────────┘
 ```
 
-## Referenties
+## References
 
 - [Managed Identity Auth Policy](https://learn.microsoft.com/azure/api-management/authentication-managed-identity-policy)
 - [Azure OpenAI API in APIM](https://learn.microsoft.com/azure/api-management/azure-openai-api-from-specification)
 - [Cognitive Services RBAC Roles](https://learn.microsoft.com/azure/ai-services/openai/how-to/role-based-access-control)
 
 ---
-**Vorige lab:** [← Lab 1 - Deploy de Gateway](../lab-01-deploy-gateway/README.md)  
-**Volgende lab:** [Lab 3 - Token Rate Limiting →](../lab-03-token-rate-limiting/README.md)
+**Previous lab:** [← Lab 1 - Deploy the Gateway](../lab-01-deploy-gateway/README.md)  
+**Next lab:** [Lab 3 - Token Rate Limiting →](../lab-03-token-rate-limiting/README.md)
