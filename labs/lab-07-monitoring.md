@@ -35,7 +35,7 @@ What's missing is (1) a policy that **emits token-level metrics** as custom dime
 
 ### How `azure-openai-emit-token-metric` works
 
-This APIM policy works with **Azure OpenAI in Microsoft Foundry models** (which is exactly what our workshop deploys). It reads the token usage from the API response's `usage` section (`prompt_tokens`, `completion_tokens`, `total_tokens`) and emits them as **custom metrics** to Application Insights. You can attach **dimensions** to slice the data:
+This APIM policy works with **Azure OpenAI in Microsoft Foundry models**. It reads the token usage from the API response's `usage` section (`prompt_tokens`, `completion_tokens`, `total_tokens`) and emits them as **custom metrics** to Application Insights. You can attach **dimensions** to slice the data:
 
 | Dimension | Value | What it tracks |
 |-----------|-------|----------------|
@@ -89,9 +89,7 @@ Open `policies/monitoring.xml` — this is the load balancing policy from Lab 6 
 </policies>
 ```
 
-Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same.
-
-> **Note:** Despite the `azure-openai-` prefix in the policy name, this policy works with any **Azure OpenAI in Microsoft Foundry** model — which is what our workshop deploys. The Foundry resource (kind `AIServices`) serves the same OpenAI-compatible API format, so the policy can read the `usage` section from the response automatically.
+Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same. The metric emission happens in `inbound` because APIM evaluates it after the response comes back — despite being in the inbound section, the token counts are extracted from the response body automatically by the policy.
 
 ## Steps
 
@@ -137,24 +135,27 @@ The APIM logger was created in Lab 1, but it's not yet connected to our API. API
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $SUBSCRIPTION_ID = az account show --query "id" -o tsv
 
+# Build the diagnostic configuration as a JSON file
+@{
+  properties = @{
+    loggerId = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/loggers/app-insights-logger"
+    alwaysLog = "allErrors"
+    sampling = @{ percentage = 100; samplingType = "fixed" }
+    frontend = @{
+      request  = @{ body = @{ bytes = 0 } }
+      response = @{ body = @{ bytes = 0 } }
+    }
+    backend = @{
+      request  = @{ body = @{ bytes = 0 } }
+      response = @{ body = @{ bytes = 0 } }
+    }
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-diagnostic.json" -Encoding utf8
+
 # Create API-level diagnostic — connects the logger to our API
 az rest --method put `
   --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/azure-openai-api/diagnostics/applicationinsights?api-version=2024-06-01-preview" `
-  --body (@{
-    properties = @{
-      loggerId = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/loggers/app-insights-logger"
-      alwaysLog = "allErrors"
-      sampling = @{ percentage = 100; samplingType = "fixed" }
-      frontend = @{
-        request  = @{ body = @{ bytes = 0 } }
-        response = @{ body = @{ bytes = 0 } }
-      }
-      backend = @{
-        request  = @{ body = @{ bytes = 0 } }
-        response = @{ body = @{ bytes = 0 } }
-      }
-    }
-  } | ConvertTo-Json -Depth 5)
+  --body "@temp-diagnostic.json"
 ```
 
 Key settings:
