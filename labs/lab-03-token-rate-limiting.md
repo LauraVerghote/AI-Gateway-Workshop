@@ -79,7 +79,14 @@ The `counter-key` is set to `context.Subscription.Id`, meaning each APIM subscri
 
 We'll redeploy the Bicep template with the new policy XML, just like in Lab 2. The deployment replaces the existing policy on the API with the new token-rate-limit version.
 
-Make sure you're in the `infra/` directory and your `$RESOURCE_GROUP` and `$LOCATION` variables are still set from Lab 1:
+Make sure you're in the `infra/` directory. If you opened a new terminal since Lab 1, set your variables again:
+
+```powershell
+$RESOURCE_GROUP = "rg-aigateway-workshop"
+$LOCATION = "swedencentral"
+```
+
+Then deploy:
 
 ```powershell
 # Read the new policy XML and create a parameters file

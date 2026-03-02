@@ -85,7 +85,13 @@ This is what runs on every request to your API through APIM.
 
 ### Step 2: Deploy the APIM configuration
 
-Run the Bicep deployment with `enableApiConfig=true` to deploy the backend, API, policy, and subscription. We use a JSON parameters file to safely pass the policy XML content (inline parameters can break due to PowerShell XML escaping):
+Run the Bicep deployment with `enableApiConfig=true` to deploy the backend, API, policy, and subscription. We use a JSON parameters file to safely pass the policy XML content (inline parameters can break due to PowerShell XML escaping).
+
+> **Important:** If you opened a new terminal since Lab 1, set your variables again:
+> ```powershell
+> $RESOURCE_GROUP = "rg-aigateway-workshop"
+> $LOCATION = "swedencentral"
+> ```
 
 ```powershell
 # Read the policy XML and create a parameters file

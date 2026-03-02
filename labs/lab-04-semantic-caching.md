@@ -96,9 +96,21 @@ Key attributes explained:
 
 ### Step 2: Deploy the Semantic Cache
 
-This lab requires an **embeddings backend** in addition to the existing chat backend. The Bicep template (`infra/modules/apim-api.bicep`) supports this with the `enableEmbeddingsBackend` parameter, which creates an `embeddings-backend` in APIM pointing to the `text-embedding-3-small` model deployment on your Foundry instance.
+We use the same `main.bicep` as in the previous labs, but this time we pass a new parameter: `enableEmbeddingsBackend = true`. This activates two additional conditional resources that were already defined in the Bicep template but skipped in Labs 1-3:
 
-Make sure you're in the `infra/` directory and your `$RESOURCE_GROUP` and `$LOCATION` variables are still set from Lab 1:
+1. **Azure Cache for Redis** — required by APIM to store embedding vectors and cached responses
+2. **Embeddings backend** — an APIM backend pointing to the `text-embedding-3-small` model deployment on your Foundry instance
+
+We also pass the new `semantic-cache.xml` policy (replacing the Lab 3 token rate limit policy).
+
+Make sure you're in the `infra/` directory. If you opened a new terminal since Lab 1, set your variables again:
+
+```powershell
+$RESOURCE_GROUP = "rg-aigateway-workshop"
+$LOCATION = "swedencentral"
+```
+
+Then deploy:
 
 ```powershell
 # Read the semantic cache policy
@@ -115,17 +127,19 @@ $policyXml = Get-Content -Path "../policies/semantic-cache.xml" -Raw
   }
 } | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
 
-# Deploy — this creates the embeddings backend and applies the semantic cache policy
+# Deploy — same main.bicep, but now with embeddings + Redis enabled
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file main.bicep `
   --parameters temp-params.json
 ```
 
-This deployment does three things on top of what Lab 3 deployed:
-1. Creates an **Azure Cache for Redis** instance and configures it as APIM's external cache (required for storing semantic cache vectors)
-2. Creates an **embeddings-backend** in APIM pointing to the `text-embedding-3-small` model
-3. Replaces the token rate limit policy with the semantic cache policy
+Compared to Lab 3, this deployment adds:
+
+| New resource | Purpose |
+|-------------|---------|
+| **Azure Cache for Redis** (Basic C0) | Stores the embedding vectors and cached responses. Configured automatically as APIM's external cache |
+| **Embeddings backend** in APIM | Points to the `text-embedding-3-small` model so the semantic cache policy can compute prompt embeddings |
 
 > ⏱️ Deployment takes **~5-10 minutes** on first run because Redis provisioning takes time. Subsequent deploys (e.g. policy changes) are faster since Redis already exists.
 
