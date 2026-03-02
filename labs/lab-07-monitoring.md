@@ -1,40 +1,60 @@
 # Lab 7: Monitoring & Token Metrics
 
-> Set up monitoring with Application Insights and track token consumption per subscription
+> Track token consumption and request patterns with Application Insights
 
 ## Goal
 
 In this lab you will:
-- Configure **token metrics** with `azure-openai-emit-token-metric`
-- View token consumption in **Application Insights**
-- Set up **LLM request logging**
-- Build a **KQL query** for a token usage dashboard
+- Add the **`azure-openai-emit-token-metric`** policy to track token usage per subscription, model, and client
+- Enable **API-level diagnostics** to log full request/response details to Application Insights
+- Generate test traffic and **view custom metrics** in the Azure Portal
+- Run **KQL queries** to analyze token consumption, cache hit ratios, and error patterns
 
 ## Background
 
-Monitoring is crucial for production AI Gateways:
+### Why monitor your AI Gateway?
 
-| Metric | Description |
-|--------|-------------|
-| Prompt tokens | Tokens in the input |
-| Completion tokens | Tokens in the output |
-| Total tokens | Total consumption |
-| Tokens per subscription | Consumption per customer/team |
-| Cache hit ratio | Effectiveness of semantic caching |
+Without monitoring, you're flying blind:
 
-## Steps
+- **Cost control** — tokens = money. You need to know which teams, APIs, or models consume the most.
+- **Capacity planning** — are you approaching quota limits? Should you add another backend region?
+- **Troubleshooting** — when a request fails, you need logs to diagnose whether it's a rate limit, content safety block, or backend error.
+- **SLA tracking** — what's the latency, error rate, and availability of your gateway?
 
-### Step 1: Apply the Monitoring Policy
+### What's already in place
 
-This policy combines **all previous labs** with monitoring:
+The workshop has incrementally built up the infrastructure. Application Insights and the APIM logger were deployed all the way back in Lab 1:
+
+| Resource | Deployed in | Purpose |
+|----------|-------------|---------|
+| Application Insights | Lab 1 | Collects telemetry from APIM |
+| Log Analytics workspace | Lab 1 | Stores the raw log data behind App Insights |
+| APIM Logger (`app-insights-logger`) | Lab 1 | Connects APIM to Application Insights |
+
+What's missing is (1) a policy that **emits token-level metrics** as custom dimensions, and (2) an **API diagnostic** that enables detailed request/response logging.
+
+### How `azure-openai-emit-token-metric` works
+
+This APIM policy reads the token usage from the Azure OpenAI response (`usage.prompt_tokens`, `usage.completion_tokens`, `usage.total_tokens`) and emits them as **custom metrics** to Application Insights. You can attach **dimensions** to slice the data:
+
+| Dimension | Value | What it tracks |
+|-----------|-------|----------------|
+| `Subscription ID` | `context.Subscription.Id` | Which API consumer (team/app) used the tokens |
+| `Client IP` | `context.Request.IpAddress` | Where requests come from |
+| `API ID` | `context.Api.Id` | Which API was called |
+| `Model` | `context.Request.MatchedParameters["deployment-id"]` | Which model deployment (gpt-4o-mini, etc.) |
+
+The metrics appear under a custom namespace (we use `AIGateway`) in Application Insights, so they don't get mixed up with built-in metrics.
+
+## Understanding the policy
+
+Open `policies/monitoring.xml` — this is the load balancing policy from Lab 6 with one addition: the `azure-openai-emit-token-metric` block in the `inbound` section.
 
 ```xml
-<!-- Final production policy: combination of all labs -->
 <policies>
     <inbound>
         <base />
-        
-        <!-- 1. Managed Identity authentication -->
+        <!-- Authenticate with managed identity -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -42,24 +62,9 @@ This policy combines **all previous labs** with monitoring:
         <set-header name="Authorization" exists-action="override">
             <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
         </set-header>
-
-        <!-- 2. Token rate limiting -->
-        <azure-openai-token-limit 
-            counter-key="@(context.Subscription.Id)"
-            tokens-per-minute="5000" 
-            estimate-prompt-tokens="false" 
-            remaining-tokens-variable-name="remainingTokens" />
-
-        <!-- 3. Semantic caching -->
-        <azure-openai-semantic-cache-lookup 
-            score-threshold="0.8" 
-            embeddings-backend-id="embeddings-backend" 
-            embeddings-backend-auth="system-assigned" />
-
-        <!-- 4. Backend routing -->
-        <set-backend-service backend-id="openai-backend" />
-
-        <!-- 5. Token metrics emitting -->
+        <!-- Use backend pool for load balancing -->
+        <set-backend-service backend-id="openai-pool" />
+        <!-- Emit token metrics to Application Insights -->
         <azure-openai-emit-token-metric namespace="AIGateway">
             <dimension name="Subscription ID" value="@(context.Subscription.Id)" />
             <dimension name="Client IP" value="@(context.Request.IpAddress)" />
@@ -68,16 +73,14 @@ This policy combines **all previous labs** with monitoring:
         </azure-openai-emit-token-metric>
     </inbound>
     <backend>
-        <base />
+        <!-- Retry on 429 or 503 with failover -->
+        <retry count="2" interval="0" first-fast-retry="true" 
+            condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
+            <set-backend-service backend-id="openai-pool" />
+            <forward-request buffer-request-body="true" />
+        </retry>
     </backend>
     <outbound>
-        <!-- Cache store -->
-        <azure-openai-semantic-cache-store duration="120" />
-        
-        <!-- Response headers for debugging -->
-        <set-header name="X-Tokens-Remaining" exists-action="override">
-            <value>@(context.Variables.GetValueOrDefault<int>("remainingTokens", 0).ToString())</value>
-        </set-header>
         <base />
     </outbound>
     <on-error>
@@ -86,32 +89,100 @@ This policy combines **all previous labs** with monitoring:
 </policies>
 ```
 
-### Step 2: Enable LLM Request Logging
+Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same. The metric emission happens in `inbound` because APIM evaluates it after the response comes back — despite being in the inbound section, the token counts are extracted from the response body automatically by the policy.
+
+## Steps
+
+### Step 1: Deploy the monitoring policy
+
+> **If you opened a new terminal since Lab 1**, set your variables again:
+> ```powershell
+> $RESOURCE_GROUP = "rg-aigateway-workshop"
+> $LOCATION = "swedencentral"
+> ```
+
+Make sure you're in the `infra/` directory, then deploy:
 
 ```powershell
-$RESOURCE_GROUP = "rg-aigateway-workshop"
-$APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
+# Read the monitoring policy
+$policyXml = Get-Content -Path "../policies/monitoring.xml" -Raw
 
-# Diagnostic settings for the API
-az apim api diagnostic create `
+@{
+  '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+  contentVersion = '1.0.0.0'
+  parameters = @{
+    location              = @{ value = $LOCATION }
+    enableApiConfig       = @{ value = $true }
+    enableSecondaryFoundry = @{ value = $true }
+    policyXml             = @{ value = $policyXml }
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
+
+# Deploy the updated policy
+az deployment group create `
   --resource-group $RESOURCE_GROUP `
-  --service-name $APIM_NAME `
-  --api-id "azure-openai-api" `
-  --diagnostic-id "applicationinsights" `
-  --logger-id "app-insights-logger" `
-  --sampling-percentage 100 `
-  --always-log "allErrors"
+  --template-file main.bicep `
+  --parameters temp-params.json
 ```
 
-### Step 3: Generate test traffic
+This is a quick deployment (~1-2 minutes) — it only updates the APIM policy. All other resources remain unchanged.
+
+### Step 2: Enable API diagnostics
+
+The APIM logger was created in Lab 1, but it's not yet connected to our API. API diagnostics tell APIM to send detailed request/response information (headers, status codes, duration, backend URL) to Application Insights for every API call.
 
 ```powershell
-$GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
-$SUB_KEY = az apim subscription show -g $RESOURCE_GROUP --service-name $APIM_NAME --subscription-id "test-sub" --query "primaryKey" -o tsv
+$APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
+$SUBSCRIPTION_ID = az account show --query "id" -o tsv
 
-$headers = @{ 
+# Create API-level diagnostic — connects the logger to our API
+az rest --method put `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/azure-openai-api/diagnostics/applicationinsights?api-version=2024-06-01-preview" `
+  --body (@{
+    properties = @{
+      loggerId = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/loggers/app-insights-logger"
+      alwaysLog = "allErrors"
+      sampling = @{ percentage = 100; samplingType = "fixed" }
+      frontend = @{
+        request  = @{ body = @{ bytes = 0 } }
+        response = @{ body = @{ bytes = 0 } }
+      }
+      backend = @{
+        request  = @{ body = @{ bytes = 0 } }
+        response = @{ body = @{ bytes = 0 } }
+      }
+    }
+  } | ConvertTo-Json -Depth 5)
+```
+
+Key settings:
+- **`sampling.percentage = 100`** — log every request (in production you'd lower this to reduce costs)
+- **`alwaysLog = "allErrors"`** — always log errors regardless of sampling
+- **`body.bytes = 0`** — don't log request/response bodies (they can contain sensitive data and are large)
+
+### Step 3: Retrieve the gateway URL and subscription key
+
+```powershell
+# Get the gateway URL
+$GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
+
+# Get the test subscription key
+$SUB_KEY = (az rest --method post `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/test-sub/listSecrets?api-version=2024-05-01" `
+  | ConvertFrom-Json).primaryKey
+
+Write-Host "Gateway URL: $GATEWAY_URL"
+Write-Host "Subscription Key: $SUB_KEY"
+```
+
+### Step 4: Generate test traffic
+
+Send a batch of varied requests to create meaningful telemetry data. This includes duplicate questions to see if they hit the semantic cache (if you still have caching enabled from Lab 4):
+
+```powershell
+$headers = @{
     "Ocp-Apim-Subscription-Key" = $SUB_KEY
-    "Content-Type" = "application/json" 
+    "Content-Type" = "application/json"
 }
 
 $questions = @(
@@ -121,8 +192,8 @@ $questions = @(
     "How does token rate limiting work?",
     "What is a managed identity?",
     "Describe the AI Gateway architecture.",
-    "What is Azure API Management?",      # Duplicate for cache test
-    "How does semantic caching work?"      # Similar for cache test
+    "What is Azure API Management?",        # Duplicate — may hit cache
+    "How does semantic caching work?"        # Similar — may hit cache
 )
 
 foreach ($question in $questions) {
@@ -134,10 +205,12 @@ foreach ($question in $questions) {
     } | ConvertTo-Json -Depth 5
 
     try {
-        $response = Invoke-WebRequest `
-            -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
-            -Method POST -Headers $headers -Body $body
-        Write-Host "  Tokens remaining: $($response.Headers['X-Tokens-Remaining'])" -ForegroundColor Green
+        $response = Invoke-RestMethod `
+          -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+          -Method POST -Headers $headers -Body $body
+
+        $tokens = $response.usage
+        Write-Host "  Prompt: $($tokens.prompt_tokens), Completion: $($tokens.completion_tokens), Total: $($tokens.total_tokens)" -ForegroundColor Green
     } catch {
         Write-Host "  Error: $($_.Exception.Response.StatusCode)" -ForegroundColor Red
     }
@@ -145,66 +218,88 @@ foreach ($question in $questions) {
 }
 ```
 
-### Step 4: View metrics in Application Insights
+Each response shows the token breakdown. These same numbers are being emitted to Application Insights by the `azure-openai-emit-token-metric` policy.
 
-Open the Azure Portal and navigate to Application Insights:
+### Step 5: View metrics in Application Insights
 
-1. **Application Insights** → **Metrics**
-2. Metric namespace: **AIGateway** (custom namespace)
-3. Available metrics:
-   - `Prompt Token Count`
-   - `Completion Token Count`
-   - `Total Token Count`
-4. Split by: `Subscription ID`, `Model`, `API ID`
+> **Note:** Metrics can take **2-5 minutes** to appear in Application Insights after the requests are sent.
 
-### Step 5: KQL Queries for dashboards
+1. Open the [Azure Portal](https://portal.azure.com)
+2. Navigate to your **Application Insights** resource (named `appi-aigateway-<suffix>`)
+3. Go to **Monitoring → Metrics**
+4. Configure the chart:
+   - **Metric namespace:** select `AIGateway` (under "Custom" — this is the namespace from the policy)
+   - **Metric:** choose `Prompt Token Count`, `Completion Token Count`, or `Total Token Count`
+   - **Aggregation:** `Sum`
+   - **Apply splitting:** click "Apply splitting" and split by `Subscription ID` or `Model`
 
-Open **Application Insights → Logs** and run these queries:
+You should see token consumption graphed over time, split by whichever dimension you chose.
 
-#### Token consumption per hour
+### Step 6: Run KQL queries
+
+For more detailed analysis, go to **Application Insights → Monitoring → Logs** and try these queries:
+
+#### Token consumption over time
+
+This shows total tokens used per hour, split by model:
 
 ```kql
 customMetrics
 | where name startswith "AIGateway"
-| summarize TotalTokens = sum(value) by bin(timestamp, 1h), tostring(customDimensions["Subscription ID"])
+| where name contains "Total"
+| summarize TotalTokens = sum(value) by bin(timestamp, 1h), tostring(customDimensions["Model"])
 | render timechart
 ```
 
-#### Top 10 subscriptions by token consumption
+#### Token breakdown by subscription
+
+See which API consumers are using the most tokens:
 
 ```kql
 customMetrics
 | where name == "AIGateway/Total Token Count"
 | summarize TotalTokens = sum(value) by tostring(customDimensions["Subscription ID"])
-| top 10 by TotalTokens desc
+| order by TotalTokens desc
 | render barchart
 ```
 
-#### Cache hit ratio
+#### Request success rate and latency
+
+This uses the built-in `requests` table (populated by the API diagnostic from Step 2):
 
 ```kql
 requests
-| where url contains "chat/completions"
-| extend CacheHit = iff(duration < 200, "Hit", "Miss")
-| summarize Count = count() by CacheHit
-| render piechart
-```
-
-#### Errors and rate limits
-
-```kql
-requests
-| where resultCode == "429" or resultCode startswith "5"
-| summarize ErrorCount = count() by bin(timestamp, 5m), resultCode
+| where url contains "openai"
+| summarize 
+    TotalRequests = count(),
+    FailedRequests = countif(toint(resultCode) >= 400),
+    AvgDuration = avg(duration),
+    P95Duration = percentile(duration, 95)
+  by bin(timestamp, 5m)
+| extend SuccessRate = round(100.0 * (TotalRequests - FailedRequests) / TotalRequests, 1)
+| project timestamp, TotalRequests, SuccessRate, AvgDuration, P95Duration
 | render timechart
 ```
 
+#### Rate limit (429) and error tracking
+
+```kql
+requests
+| where url contains "openai"
+| where toint(resultCode) >= 400
+| summarize Count = count() by bin(timestamp, 5m), resultCode
+| render timechart
+```
+
+> **Tip:** You can pin any of these charts to an **Azure Dashboard** for a permanent monitoring view. Click the pin icon in the top-right of the chart.
+
 ## Expected result
 
-- ✅ Token metrics visible in Application Insights
-- ✅ Custom dimensions (Subscription ID, Model) available for filtering
-- ✅ KQL queries show token consumption patterns
-- ✅ Cache hits vs misses are measurable
+After this lab you will have:
+- ✅ Token metrics (`Prompt Token Count`, `Completion Token Count`, `Total Token Count`) visible under the custom `AIGateway` namespace in Application Insights
+- ✅ Custom dimensions (Subscription ID, Model, Client IP, API ID) available for filtering and splitting
+- ✅ API-level diagnostics logging every request to Application Insights
+- ✅ KQL queries for token consumption, success rates, and error tracking
 
 ## Architecture (Complete)
 
@@ -221,18 +316,18 @@ requests
 │  Client   │──►│  API Management (AI Gateway)                 │
 │  Apps     │   │                                              │
 │           │◄──│  Policies:                                   │
-└──────────┘    │  1. ✅ Managed Identity Auth                 │
-                │  2. ✅ Token Rate Limiting (500 TPM)         │
-                │  3. ✅ Semantic Caching (0.8 threshold)      │
-                │  4. ✅ Content Safety                        │
-                │  5. ✅ Token Metrics Emission                │
-                │  6. ✅ Load Balancing + Retry                │
+└──────────┘    │  1. ✅ Managed Identity Auth       (Lab 2)   │
+                │  2. ✅ Token Rate Limiting          (Lab 3)   │
+                │  3. ✅ Semantic Caching             (Lab 4)   │
+                │  4. ✅ Content Safety               (Lab 5)   │
+                │  5. ✅ Load Balancing + Retry       (Lab 6)   │
+                │  6. ✅ Token Metrics Emission       (Lab 7)   │
                 └──────┬───────────────────┬───────────────────┘
                        │                   │
               ┌────────▼────────┐ ┌────────▼────────┐
               │ Microsoft       │ │ Microsoft       │
               │ Foundry         │ │ Foundry         │
-              │ Sweden Central  │ │ West Europe     │
+              │ Sweden Central  │ │ East US         │
               │ - gpt-4o-mini   │ │ - gpt-4o-mini   │
               │ - embeddings    │ │ - embeddings    │
               └─────────────────┘ └─────────────────┘
@@ -241,7 +336,8 @@ requests
 ## References
 
 - [Token Metrics Policy](https://learn.microsoft.com/azure/api-management/azure-openai-emit-token-metric-policy)
-- [LLM Logs & Token Limits](https://learn.microsoft.com/azure/api-management/api-management-howto-llm-logs)
+- [API Diagnostics](https://learn.microsoft.com/azure/api-management/api-management-howto-use-azure-monitor)
+- [KQL Query Language](https://learn.microsoft.com/azure/data-explorer/kusto/query/)
 - [Monitoring Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/zero-to-production)
 
 ---
@@ -249,14 +345,14 @@ requests
 
 ---
 
-## 🎉 Congratulations!
+## Congratulations!
 
 You have completed the full AI Gateway Workshop! You now have a production-ready AI Gateway with:
 
-- ✅ API Management as a central access point
-- ✅ Managed identity authentication (no API keys)
-- ✅ Token rate limiting for cost control
-- ✅ Semantic caching for cost savings
-- ✅ Content safety for safe AI
-- ✅ Load balancing for high availability
-- ✅ Monitoring with Application Insights
+- ✅ **Lab 1** — Infrastructure deployed (APIM, Foundry, App Insights)
+- ✅ **Lab 2** — Managed identity authentication (no API keys)
+- ✅ **Lab 3** — Token rate limiting for cost control
+- ✅ **Lab 4** — Semantic caching for cost savings
+- ✅ **Lab 5** — Content safety for responsible AI
+- ✅ **Lab 6** — Load balancing for high availability
+- ✅ **Lab 7** — Monitoring with Application Insights

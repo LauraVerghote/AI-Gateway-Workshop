@@ -1,0 +1,36 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Authenticate with managed identity -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <!-- Use backend pool for load balancing -->
+        <set-backend-service backend-id="openai-pool" />
+        <!-- Emit token metrics to Application Insights -->
+        <azure-openai-emit-token-metric namespace="AIGateway">
+            <dimension name="Subscription ID" value="@(context.Subscription.Id)" />
+            <dimension name="Client IP" value="@(context.Request.IpAddress)" />
+            <dimension name="API ID" value="@(context.Api.Id)" />
+            <dimension name="Model" value="@(context.Request.MatchedParameters["deployment-id"])" />
+        </azure-openai-emit-token-metric>
+    </inbound>
+    <backend>
+        <!-- Retry on 429 (rate limit) or 503 (service unavailable) -->
+        <retry count="2" interval="0" first-fast-retry="true" 
+            condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
+            <set-backend-service backend-id="openai-pool" />
+            <forward-request buffer-request-body="true" />
+        </retry>
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
