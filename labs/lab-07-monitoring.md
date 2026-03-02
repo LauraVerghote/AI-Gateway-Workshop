@@ -35,7 +35,7 @@ What's missing is (1) a policy that **emits token-level metrics** as custom dime
 
 ### How `azure-openai-emit-token-metric` works
 
-This APIM policy reads the token usage from the Azure OpenAI response (`usage.prompt_tokens`, `usage.completion_tokens`, `usage.total_tokens`) and emits them as **custom metrics** to Application Insights. You can attach **dimensions** to slice the data:
+This APIM policy works with **Azure OpenAI in Microsoft Foundry models** (which is exactly what our workshop deploys). It reads the token usage from the API response's `usage` section (`prompt_tokens`, `completion_tokens`, `total_tokens`) and emits them as **custom metrics** to Application Insights. You can attach **dimensions** to slice the data:
 
 | Dimension | Value | What it tracks |
 |-----------|-------|----------------|
@@ -89,7 +89,9 @@ Open `policies/monitoring.xml` — this is the load balancing policy from Lab 6 
 </policies>
 ```
 
-Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same. The metric emission happens in `inbound` because APIM evaluates it after the response comes back — despite being in the inbound section, the token counts are extracted from the response body automatically by the policy.
+Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same.
+
+> **Note:** Despite the `azure-openai-` prefix in the policy name, this policy works with any **Azure OpenAI in Microsoft Foundry** model — which is what our workshop deploys. The Foundry resource (kind `AIServices`) serves the same OpenAI-compatible API format, so the policy can read the `usage` section from the response automatically.
 
 ## Steps
 
@@ -218,7 +220,7 @@ foreach ($question in $questions) {
 }
 ```
 
-Each response shows the token breakdown. These same numbers are being emitted to Application Insights by the `azure-openai-emit-token-metric` policy.
+Each response shows the token breakdown. The Foundry models return token usage in the standard OpenAI `usage` format — the `azure-openai-emit-token-metric` policy reads these same numbers and emits them to Application Insights as custom metrics.
 
 ### Step 5: View metrics in Application Insights
 
