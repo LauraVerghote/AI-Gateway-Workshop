@@ -5,7 +5,7 @@
 ## Goal
 
 In this lab you will:
-- Deploy a **second Microsoft Foundry** instance in a different region (West Europe)
+- Deploy a **second Microsoft Foundry** instance in a different region (East US)
 - Configure a **backend pool** in APIM that distributes traffic across both instances
 - Set up **automatic retry** on 429 (rate limit) or 503 (unavailable) errors
 - Test that requests are load balanced and failover works
@@ -30,12 +30,12 @@ APIM uses a **backend pool** — a single logical backend that contains multiple
 ```
                     ┌── Microsoft Foundry (Sweden Central)  [weight: 60]
 Client → APIM ─────>│                                        priority: 1
-                    └── Microsoft Foundry (West Europe)     [weight: 40]
+                    └── Microsoft Foundry (East US)         [weight: 40]
                                                              priority: 1
 ```
 
 - **Priority** — lower numbers are tried first. Backends with the same priority share traffic.
-- **Weight** — within the same priority, traffic is distributed proportionally. 60/40 means ~60% of requests go to Sweden Central and ~40% to West Europe.
+- **Weight** — within the same priority, traffic is distributed proportionally. 60/40 means ~60% of requests go to Sweden Central and ~40% to East US.
 
 If a backend returns `429` or `503`, the **retry policy** in the `<backend>` section automatically tries another backend from the pool — all transparent to the client.
 
@@ -45,7 +45,7 @@ This lab adds several new resources to the infrastructure. Here's what `enableSe
 
 ### 1. Secondary Foundry Instance
 
-A second `Microsoft.CognitiveServices/accounts` resource is deployed in West Europe (configured in `main.bicepparam`). It gets the same model deployments (gpt-4o-mini + text-embedding-3-small) as the primary instance, giving you double the quota.
+A second `Microsoft.CognitiveServices/accounts` resource is deployed in East US (configured in `main.bicepparam`). It gets the same model deployments (gpt-4o-mini + text-embedding-3-small) as the primary instance, giving you double the quota.
 
 ### 2. RBAC for the Secondary Instance
 
@@ -159,7 +159,7 @@ This deployment does the following:
 
 | Resource | Type | What it does |
 |----------|------|-------------|
-| `ais-aigateway2-<suffix>` | Microsoft Foundry (West Europe) | Second AI Services instance with gpt-4o-mini + embeddings |
+| `ais-aigateway2-<suffix>` | Microsoft Foundry (East US) | Second AI Services instance with gpt-4o-mini + embeddings |
 | RBAC assignment | Role Assignment | Gives APIM managed identity access to the secondary Foundry |
 | `openai-backend-secondary` | APIM Backend | Points to the secondary Foundry endpoint |
 | `openai-pool` | APIM Backend Pool | Distributes traffic 60/40 across primary and secondary |
@@ -244,7 +244,7 @@ All requests should succeed. The backend pool distributes them across your two F
 ## Expected result
 
 After this lab you will have:
-- ✅ Two Microsoft Foundry instances (Sweden Central + West Europe)
+- ✅ Two Microsoft Foundry instances (Sweden Central + East US)
 - ✅ APIM backend pool distributing traffic 60/40
 - ✅ Automatic retry on 429 (rate limit) and 503 (unavailable)
 - ✅ All requests succeeding through the load balanced gateway
@@ -264,7 +264,7 @@ Client                        │       │  - gpt-4o-mini           │
 │  - Auth: MI       │◄────────┤
 │  - Retry: 429/503 │         │       ┌──────────────────────────┐
 └───────────────────┘         │  40%  │  Microsoft Foundry       │
-                              └──────►│  (West Europe)           │
+                              └──────►│  (East US)               │
                                       │  - gpt-4o-mini           │
                                       └──────────────────────────┘
 ```

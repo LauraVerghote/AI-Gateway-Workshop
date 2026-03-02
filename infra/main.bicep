@@ -36,7 +36,7 @@ param modelCapacity int = 30
 param enableSecondaryFoundry bool = false
 
 @description('Secondary Foundry location')
-param secondaryLocation string = 'westeurope'
+param secondaryLocation string = 'eastus'
 
 // ===========================================================================
 // Application Insights

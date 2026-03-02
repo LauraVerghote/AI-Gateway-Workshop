@@ -9,4 +9,4 @@ param embeddingModelName = 'text-embedding-3-small'
 param embeddingModelVersion = '1'
 param modelCapacity = 30
 param enableSecondaryFoundry = false
-param secondaryLocation = 'westeurope'
+param secondaryLocation = 'eastus'
