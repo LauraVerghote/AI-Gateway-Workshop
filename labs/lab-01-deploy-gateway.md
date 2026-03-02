@@ -64,7 +64,7 @@ az group create --name $RESOURCE_GROUP --location $LOCATION
 This step uses a Bicep template to deploy the following resources into your resource group:
 
 - **Azure API Management (Basicv2)** — the AI Gateway that will route and manage your API calls
-- **Microsoft Foundry** (Azure AI Services) — with two model deployments: `gpt-4o-mini` (chat) and `text-embedding-3-small` (embeddings)
+- **Microsoft Foundry** (Azure AI Services) — with two model deployments: `gpt-4o-mini` (chat) and `text-embedding-3-small` (embeddings), plus a **Foundry project** visible in the [Foundry portal](https://ai.azure.com)
 - **Application Insights + Log Analytics workspace** — for monitoring, logging, and diagnostics
 - **RBAC role assignment** — grants APIM's system-assigned managed identity the *Cognitive Services OpenAI User* role on the Foundry resource, so APIM can authenticate without API keys
 

@@ -130,6 +130,9 @@ param policyXml string = '<policies><inbound><base /></inbound><backend><base />
 @description('Enable embeddings backend for semantic caching')
 param enableEmbeddingsBackend bool = false
 
+@description('Enable content safety backend and RBAC')
+param enableContentSafety bool = false
+
 // ===========================================================================
 // Azure Cache for Redis (for Semantic Caching lab)
 // Required as external cache for APIM semantic cache policies
@@ -144,6 +147,20 @@ module redis 'modules/redis.bicep' = if (enableEmbeddingsBackend) {
 }
 
 // ===========================================================================
+// RBAC: Cognitive Services User for Content Safety (Lab 5)
+// Broader role than OpenAI User — required for Content Safety API access
+// ===========================================================================
+module rbacContentSafety 'modules/role-assignment.bicep' = if (enableContentSafety) {
+  name: 'deploy-rbac-content-safety'
+  params: {
+    principalId: apim.outputs.principalId
+    cognitiveServicesResourceId: foundryPrimary.outputs.id
+    // Cognitive Services User (covers Content Safety API)
+    roleDefinitionId: 'a97b65f3-24c7-4388-baec-2e87135dc908'
+  }
+}
+
+// ===========================================================================
 // APIM API Configuration (Backend, API, Policy, Subscription)
 // Deployed from Lab 2 onwards
 // ===========================================================================
@@ -154,8 +171,9 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
     embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}' : ''
+    contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
   }
-  dependsOn: [rbacPrimary, redis]
+  dependsOn: [rbacPrimary, redis, rbacContentSafety]
 }
 
 // ===========================================================================

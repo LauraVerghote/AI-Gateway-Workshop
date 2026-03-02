@@ -15,6 +15,9 @@ param policyXml string
 @description('URL for the embeddings backend (optional, for semantic caching)')
 param embeddingsBackendUrl string = ''
 
+@description('URL for the content safety backend (optional, for content safety lab)')
+param contentSafetyBackendUrl string = ''
+
 // ===========================================================================
 // Reference existing APIM instance
 // ===========================================================================
@@ -48,6 +51,19 @@ resource embeddingsBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-
 }
 
 // ===========================================================================
+// Content Safety Backend (optional, for content safety lab)
+// Points to the Foundry endpoint for Content Safety API calls
+// ===========================================================================
+resource contentSafetyBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = if (!empty(contentSafetyBackendUrl)) {
+  parent: apimService
+  name: 'content-safety-backend'
+  properties: {
+    url: contentSafetyBackendUrl
+    protocol: 'http'
+  }
+}
+
+// ===========================================================================
 // API: Import Azure OpenAI-compatible REST API specification (used by Microsoft Foundry)
 // ===========================================================================
 resource openAiApi 'Microsoft.ApiManagement/service/apis@2024-06-01-preview' = {
@@ -73,7 +89,7 @@ resource openAiApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2024-06-
     format: 'rawxml'
     value: policyXml
   }
-  dependsOn: [openAiBackend, embeddingsBackend]
+  dependsOn: [openAiBackend, embeddingsBackend, contentSafetyBackend]
 }
 
 // ===========================================================================
