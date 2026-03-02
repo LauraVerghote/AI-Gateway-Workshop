@@ -172,8 +172,9 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     policyXml: policyXml
     embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}' : ''
     contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
+    secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
   }
-  dependsOn: [rbacPrimary, redis, rbacContentSafety]
+  dependsOn: [rbacPrimary, redis, rbacContentSafety, rbacSecondary]
 }
 
 // ===========================================================================

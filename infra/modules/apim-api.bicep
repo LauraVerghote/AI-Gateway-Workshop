@@ -18,6 +18,9 @@ param embeddingsBackendUrl string = ''
 @description('URL for the content safety backend (optional, for content safety lab)')
 param contentSafetyBackendUrl string = ''
 
+@description('Secondary Foundry endpoint URL (for load balancing lab)')
+param secondaryFoundryEndpoint string = ''
+
 // ===========================================================================
 // Reference existing APIM instance
 // ===========================================================================
@@ -64,6 +67,45 @@ resource contentSafetyBackend 'Microsoft.ApiManagement/service/backends@2024-06-
 }
 
 // ===========================================================================
+// Secondary Backend (for load balancing lab)
+// Points to a second Microsoft Foundry instance in a different region
+// ===========================================================================
+resource secondaryBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = if (!empty(secondaryFoundryEndpoint)) {
+  parent: apimService
+  name: 'openai-backend-secondary'
+  properties: {
+    url: '${secondaryFoundryEndpoint}openai'
+    protocol: 'http'
+  }
+}
+
+// ===========================================================================
+// Backend Pool (for load balancing lab)
+// Distributes traffic across primary and secondary backends with weighted routing
+// ===========================================================================
+resource backendPool 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = if (!empty(secondaryFoundryEndpoint)) {
+  parent: apimService
+  name: 'openai-pool'
+  properties: {
+    type: 'Pool'
+    pool: {
+      services: [
+        {
+          id: '/backends/${openAiBackend.name}'
+          priority: 1
+          weight: 60
+        }
+        {
+          id: '/backends/${secondaryBackend.name}'
+          priority: 1
+          weight: 40
+        }
+      ]
+    }
+  }
+}
+
+// ===========================================================================
 // API: Import Azure OpenAI-compatible REST API specification (used by Microsoft Foundry)
 // ===========================================================================
 resource openAiApi 'Microsoft.ApiManagement/service/apis@2024-06-01-preview' = {
@@ -89,7 +131,7 @@ resource openAiApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2024-06-
     format: 'rawxml'
     value: policyXml
   }
-  dependsOn: [openAiBackend, embeddingsBackend, contentSafetyBackend]
+  dependsOn: [openAiBackend, embeddingsBackend, contentSafetyBackend, secondaryBackend, backendPool]
 }
 
 // ===========================================================================

@@ -216,11 +216,21 @@ Client Request
 └──────────────────────┘                          └──────────────────┘
 ```
 
+> **Tip: AI Gateway in the Foundry Portal**
+> Now that APIM is fronting your Foundry models, you can link them together in the Foundry portal. The **AI Gateway (preview)** feature (under **Operate → Admin** in [ai.azure.com](https://ai.azure.com)) lets you associate your APIM instance with your Foundry project. This gives you:
+> - **Model governance** — manage which models are exposed through the gateway directly from the Foundry portal
+> - **Quota management** — configure token limits per model or consumer from one place
+> - **Telemetry & monitoring** — view gateway traffic, latency, and error rates in the Foundry dashboard
+> - **Agent integration** — Foundry agents can automatically route through your gateway, enforcing all your policies (rate limiting, caching, content safety)
+>
+See [Enable AI gateway in Microsoft Foundry](https://learn.microsoft.com/azure/ai-foundry/configuration/enable-ai-api-management-gateway-portal) for setup instructions.
+
 ## References
 
 - [Managed Identity Auth Policy](https://learn.microsoft.com/azure/api-management/authentication-managed-identity-policy)
 - [Azure OpenAI API in APIM](https://learn.microsoft.com/azure/api-management/azure-openai-api-from-specification)
 - [Cognitive Services RBAC Roles](https://learn.microsoft.com/azure/ai-services/openai/how-to/role-based-access-control)
+- [Enable AI Gateway in Microsoft Foundry](https://learn.microsoft.com/azure/ai-foundry/configuration/enable-ai-api-management-gateway-portal)
 
 ---
 **Previous lab:** [← Lab 1 - Deploy the Gateway](lab-01-deploy-gateway.md)  

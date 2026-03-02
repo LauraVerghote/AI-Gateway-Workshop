@@ -67,6 +67,7 @@ resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-0
       version: modelVersion
     }
   }
+  dependsOn: [project]
 }
 
 // Embedding model deployment (needed for semantic caching)
