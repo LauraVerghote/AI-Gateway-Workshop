@@ -127,6 +127,22 @@ param enableApiConfig bool = false
 @description('Policy XML content to apply to the Microsoft Foundry API')
 param policyXml string = '<policies><inbound><base /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
 
+@description('Enable embeddings backend for semantic caching')
+param enableEmbeddingsBackend bool = false
+
+// ===========================================================================
+// Azure Cache for Redis (for Semantic Caching lab)
+// Required as external cache for APIM semantic cache policies
+// ===========================================================================
+module redis 'modules/redis.bicep' = if (enableEmbeddingsBackend) {
+  name: 'deploy-redis'
+  params: {
+    location: location
+    name: 'redis-aigateway-${uniqueSuffix}'
+    apimName: apim.outputs.name
+  }
+}
+
 // ===========================================================================
 // APIM API Configuration (Backend, API, Policy, Subscription)
 // Deployed from Lab 2 onwards
@@ -137,8 +153,9 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     apimName: apim.outputs.name
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
+    embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}' : ''
   }
-  dependsOn: [rbacPrimary]
+  dependsOn: [rbacPrimary, redis]
 }
 
 // ===========================================================================
