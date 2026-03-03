@@ -30,3 +30,4 @@ Thumbs.db
 *.tfstate.backup
 infra/main.json
 infra/temp-params.json
+infra/temp-diagnostic.json
