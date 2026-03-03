@@ -205,13 +205,12 @@ Each response shows the token breakdown. The `azure-openai-emit-token-metric` po
    - **Metric namespace:** select `azure.applicationinsights` (under "Custom")
    - **Metric:** choose `Prompt Tokens`, `Completion Tokens`, or `Total Tokens`
    - **Aggregation:** `Sum`
-   - **Apply splitting:** click "Apply splitting" and split by `Subscription ID` or `Model`
 
 You should see token consumption graphed over time, split by whichever dimension you chose.
 
 ### Step 5: Run KQL queries
 
-For more detailed analysis, go to **Application Insights → Monitoring → Logs** and try these queries:
+For more detailed analysis, go to **Application Insights → Monitoring → Logs** and try these queries. Switch to the KQL mode on the top right. 
 
 #### Token consumption over time
 
