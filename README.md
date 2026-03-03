@@ -43,10 +43,12 @@ Dev-ai-gateway/
 │   ├── lab-05-load-balancing.md        # Lab 5: Load Balancing with Retry
 │   └── lab-06-monitoring.md            # Lab 6: Monitoring & Token Metrics
 ├── policies/                          # APIM Policy XML files
-│   ├── token-rate-limit.xml
+│   ├── base-policy.xml
 │   ├── content-safety.xml
 │   ├── load-balancing.xml
-│   └── managed-identity-auth.xml
+│   ├── managed-identity-auth.xml
+│   ├── monitoring.xml
+│   └── token-rate-limit.xml
 └── scripts/
     ├── deploy.ps1                     # Full deployment script
     ├── setup-environment.ps1          # Environment setup
@@ -63,7 +65,7 @@ Start directly with [Lab 1](labs/lab-01-deploy-gateway.md) and follow each lab i
 
 ### Option B: Quick Start (deploy infrastructure first)
 
-If you prefer to deploy all infrastructure upfront and focus on the **policies** (Labs 3-7), run the deploy script first:
+If you prefer to deploy all infrastructure upfront and focus on the **policies** (Labs 3-6), run the deploy script first:
 
 ```powershell
 # 1. Clone the repository

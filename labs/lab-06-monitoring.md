@@ -44,7 +44,7 @@ This APIM policy works with **Azure OpenAI in Microsoft Foundry models**. It rea
 | `API ID` | `context.Api.Id` | Which API was called |
 | `Model` | `context.Request.MatchedParameters["deployment-id"]` | Which model deployment (gpt-4o-mini, etc.) |
 
-The metrics appear under the `azure.applicationinsights` custom namespace in Application Insights Metrics explorer. In the `customMetrics` log table, they appear as `Prompt Tokens`, `Completion Tokens`, and `Total Tokens`.
+The metrics appear under the `AIGateway` custom namespace in Application Insights Metrics explorer. In the `customMetrics` log table, they appear as `Prompt Tokens`, `Completion Tokens`, and `Total Tokens`.
 
 ## Understanding the policy
 
@@ -202,11 +202,20 @@ Each response shows the token breakdown. The `azure-openai-emit-token-metric` po
 2. Navigate to your **Application Insights** resource (named `appi-aigateway-<suffix>`)
 3. Go to **Monitoring → Metrics**
 4. Configure the chart:
-   - **Metric namespace:** select `azure.applicationinsights` (under "Custom")
+   - **Metric namespace:** select `AIGateway` (under "Custom")
    - **Metric:** choose `Prompt Tokens`, `Completion Tokens`, or `Total Tokens`
    - **Aggregation:** `Sum`
 
 You should see token consumption graphed over time, split by whichever dimension you chose.
+
+> **Troubleshooting:** If you don't see `AIGateway` in the namespace dropdown, the Metrics Explorer cache may not have picked up the custom metrics yet. You can verify the data is flowing by going to **Monitoring → Logs** and running:
+> ```kql
+> customMetrics
+> | where name contains "Tokens"
+> | summarize sum(value) by name, bin(timestamp, 5m)
+> | render timechart
+> ```
+> The Metrics Explorer namespace usually appears within 5-10 minutes after the first metrics are emitted.
 
 ### Step 5: Run KQL queries
 
@@ -238,7 +247,7 @@ customMetrics
 
 #### Request success rate and latency
 
-This uses the built-in `requests` table (populated by the API diagnostic from Step 2):
+This uses the built-in `requests` table (populated by the API diagnostic created by the Bicep deployment):
 
 ```kql
 requests
@@ -269,7 +278,7 @@ requests
 ## Expected result
 
 After this lab you will have:
-- ✅ Token metrics (`Prompt Tokens`, `Completion Tokens`, `Total Tokens`) visible under the `azure.applicationinsights` custom metric namespace in Application Insights
+- ✅ Token metrics (`Prompt Tokens`, `Completion Tokens`, `Total Tokens`) visible under the `AIGateway` custom metric namespace in Application Insights
 - ✅ Custom dimensions (Subscription ID, Model, Client IP, API ID) available for filtering and splitting
 - ✅ API-level diagnostics logging every request to Application Insights
 - ✅ KQL queries for token consumption, success rates, and error tracking
