@@ -127,47 +127,14 @@ az deployment group create `
 
 This is a quick deployment (~1-2 minutes) since no new infrastructure is needed — it just updates the APIM policy.
 
-### Step 2: Enable API diagnostics
+> **Note:** The Bicep deployment also creates an **API diagnostic** (defined in `apim-api.bicep`) that connects your API to the Application Insights logger with `metrics: true`. This is what enables the `azure-openai-emit-token-metric` policy to emit custom metrics. Without this diagnostic, the policy would silently do nothing.
 
-The APIM logger was created in Lab 1, but it's not yet connected to our API. API diagnostics tell APIM to send detailed request/response information (headers, status codes, duration, backend URL) to Application Insights for every API call. The `metrics = true` setting is critical — without it, the `azure-openai-emit-token-metric` policy won't emit custom metrics.
+### Step 2: Retrieve the gateway URL and subscription key
 
 ```powershell
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
 $SUBSCRIPTION_ID = az account show --query "id" -o tsv
 
-# Build the diagnostic configuration as a JSON file
-@{
-  properties = @{
-    loggerId = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/loggers/app-insights-logger"
-    alwaysLog = "allErrors"
-    metrics = $true
-    sampling = @{ percentage = 100; samplingType = "fixed" }
-    frontend = @{
-      request  = @{ body = @{ bytes = 0 } }
-      response = @{ body = @{ bytes = 0 } }
-    }
-    backend = @{
-      request  = @{ body = @{ bytes = 0 } }
-      response = @{ body = @{ bytes = 0 } }
-    }
-  }
-} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-diagnostic.json" -Encoding utf8
-
-# Create API-level diagnostic — connects the logger to our API
-az rest --method put `
-  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/azure-openai-api/diagnostics/applicationinsights?api-version=2024-06-01-preview" `
-  --body "@temp-diagnostic.json"
-```
-
-Key settings:
-- **`metrics = true`** — required for `azure-openai-emit-token-metric` to emit custom metrics to Application Insights
-- **`sampling.percentage = 100`** — log every request (in production you'd lower this to reduce costs)
-- **`alwaysLog = "allErrors"`** — always log errors regardless of sampling
-- **`body.bytes = 0`** — don't log request/response bodies (they can contain sensitive data and are large)
-
-### Step 3: Retrieve the gateway URL and subscription key
-
-```powershell
 # Get the gateway URL
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 
@@ -180,7 +147,7 @@ Write-Host "Gateway URL: $GATEWAY_URL"
 Write-Host "Subscription Key: $SUB_KEY"
 ```
 
-### Step 4: Generate test traffic
+### Step 3: Generate test traffic
 
 Send a batch of varied requests to create meaningful telemetry data:
 
@@ -227,7 +194,7 @@ Each response shows the token breakdown. The `azure-openai-emit-token-metric` po
 
 > **Note:** You'll notice every response has exactly **100 completion tokens**. That's because the script sets `max_tokens = 100`, which caps each response at that limit. The prompt tokens vary because the questions have different lengths. This is intentional — it generates a predictable amount of token traffic for monitoring purposes.
 
-### Step 5: View metrics in Application Insights
+### Step 4: View metrics in Application Insights
 
 > **Note:** Metrics can take **2-5 minutes** to appear in Application Insights after the requests are sent.
 
@@ -242,7 +209,7 @@ Each response shows the token breakdown. The `azure-openai-emit-token-metric` po
 
 You should see token consumption graphed over time, split by whichever dimension you chose.
 
-### Step 6: Run KQL queries
+### Step 5: Run KQL queries
 
 For more detailed analysis, go to **Application Insights → Monitoring → Logs** and try these queries:
 
