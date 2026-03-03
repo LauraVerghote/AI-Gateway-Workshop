@@ -223,6 +223,8 @@ foreach ($question in $questions) {
 
 Each response shows the token breakdown. The `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
 
+> **Note:** You'll notice every response has exactly **100 completion tokens**. That's because the script sets `max_tokens = 100`, which caps each response at that limit. The prompt tokens vary because the questions have different lengths. This is intentional — it generates a predictable amount of token traffic for monitoring purposes.
+
 ### Step 5: View metrics in Application Insights
 
 > **Note:** Metrics can take **2-5 minutes** to appear in Application Insights after the requests are sent.
