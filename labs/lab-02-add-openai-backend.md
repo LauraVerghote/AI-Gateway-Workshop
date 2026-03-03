@@ -33,7 +33,7 @@ This means clients never need a Microsoft Foundry API key — they authenticate 
 
 ## Understanding the Bicep
 
-Open `infra/modules/apim-api.bicep` to see the four resources being deployed. Here's what each one does:
+Open `infra/modules/apim-api.bicep` to see the resources being deployed. The file contains resources for all labs, but many are **conditional** — they only deploy when you pass the right parameters. For this lab, only four resources are deployed:
 
 ### 1. Backend (`openai-backend`)
 ```
@@ -49,6 +49,8 @@ The XML content from `policies/managed-identity-auth.xml` is attached to the API
 
 ### 4. Subscription (`test-sub`)
 Creates an API key scoped to the API. Clients must include this key in the `Ocp-Apim-Subscription-Key` header to call the gateway. This is how APIM controls who can access your AI endpoints.
+
+> **Note:** You'll also see conditional resources in the file — `content-safety-backend`, `openai-backend-secondary`, and `openai-pool`. These are guarded by `if (!empty(...))` conditions and only deploy in later labs when you pass `enableContentSafety=true` or `enableSecondaryFoundry=true`. For now, they are skipped.
 
 ## Steps
 
