@@ -321,7 +321,8 @@ After this lab you will have:
 - [Monitoring Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/zero-to-production)
 
 ---
-**Previous lab:** [← Lab 5 - Load Balancing](lab-05-load-balancing.md)
+**Previous lab:** [← Lab 5 - Load Balancing](lab-05-load-balancing.md)  
+**Next lab:** [Lab 7 - Customer Demo →](lab-07-customer-demo.md)
 
 ---
 
