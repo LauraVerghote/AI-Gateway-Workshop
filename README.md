@@ -8,7 +8,6 @@ In this workshop you will build an AI Gateway step by step that:
 
 - Protects **Microsoft Foundry** models behind an API Management gateway
 - Implements **token rate limiting** to control costs
-- Enables **semantic caching** to reduce costs (60-80% savings)
 - Adds **content safety** filters to block harmful content
 - Configures **load balancing** across multiple backends
 - Sets up **monitoring** with Application Insights and token metrics
@@ -40,13 +39,11 @@ Dev-ai-gateway/
 │   ├── lab-01-deploy-gateway.md       # Lab 1: Deploy the AI Gateway
 │   ├── lab-02-add-openai-backend.md   # Lab 2: Add Microsoft Foundry as backend
 │   ├── lab-03-token-rate-limiting.md   # Lab 3: Token Rate Limiting
-│   ├── lab-04-semantic-caching.md      # Lab 4: Semantic Caching
-│   ├── lab-05-content-safety.md        # Lab 5: Content Safety
-│   ├── lab-06-load-balancing.md        # Lab 6: Load Balancing with Retry
-│   └── lab-07-monitoring.md            # Lab 7: Monitoring & Token Metrics
+│   ├── lab-04-content-safety.md        # Lab 4: Content Safety
+│   ├── lab-05-load-balancing.md        # Lab 5: Load Balancing with Retry
+│   └── lab-06-monitoring.md            # Lab 6: Monitoring & Token Metrics
 ├── policies/                          # APIM Policy XML files
 │   ├── token-rate-limit.xml
-│   ├── semantic-cache.xml
 │   ├── content-safety.xml
 │   ├── load-balancing.xml
 │   └── managed-identity-auth.xml
@@ -85,10 +82,10 @@ The script deploys the following resources into a single resource group:
 | Resource | Description |
 |----------|-------------|
 | **API Management (Basicv2)** | The AI Gateway itself, with a system-assigned managed identity |
-| **Microsoft Foundry** | GPT-4o-mini and text-embedding-3-small model deployments |
+| **Microsoft Foundry** | GPT-4o-mini model deployment |
 | **Application Insights + Log Analytics** | Monitoring and logging for the gateway |
 | **RBAC role assignment** | Grants APIM's managed identity the "Cognitive Services OpenAI User" role on the Foundry resource |
-| **APIM backends** | Pre-configured `openai-backend` and `embeddings-backend` pointing to the Foundry endpoint |
+| **APIM backends** | Pre-configured `openai-backend` pointing to the Foundry endpoint |
 
 > After running this, you can skip to [Lab 3 - Token Rate Limiting](labs/lab-03-token-rate-limiting.md). Labs 1-2 are still worth reading to understand the architecture.
 
@@ -99,19 +96,17 @@ The script deploys the following resources into a single resource group:
 | 1 | [Deploy the AI Gateway](labs/lab-01-deploy-gateway.md) | 15 min | Deploy APIM Basicv2 + resource group |
 | 2 | [Microsoft Foundry Backend](labs/lab-02-add-openai-backend.md) | 20 min | Connect Foundry as backend with managed identity |
 | 3 | [Token Rate Limiting](labs/lab-03-token-rate-limiting.md) | 15 min | Limit tokens per minute |
-| 4 | [Semantic Caching](labs/lab-04-semantic-caching.md) | 20 min | Cache similar prompts |
-| 5 | [Content Safety](labs/lab-05-content-safety.md) | 15 min | Filter harmful content |
-| 6 | [Load Balancing](labs/lab-06-load-balancing.md) | 15 min | Distribute load across multiple backends |
-| 7 | [Monitoring & Metrics](labs/lab-07-monitoring.md) | 15 min | Token metrics and Application Insights |
+| 4 | [Content Safety](labs/lab-04-content-safety.md) | 15 min | Filter harmful content |
+| 5 | [Load Balancing](labs/lab-05-load-balancing.md) | 15 min | Distribute load across multiple backends |
+| 6 | [Monitoring & Metrics](labs/lab-06-monitoring.md) | 15 min | Token metrics and Application Insights |
 
-**Total workshop duration: ~2 hours**
+**Total workshop duration: ~1.5 hours**
 
 ## 🔗 References
 
 - [Azure AI Gateway Samples (aka.ms/aigateway)](https://github.com/Azure-Samples/AI-Gateway)
 - [GenAI Gateway Capabilities](https://learn.microsoft.com/azure/api-management/genai-gateway-capabilities)
 - [APIM + Azure OpenAI](https://learn.microsoft.com/azure/api-management/azure-openai-api-from-specification)
-- [Semantic Caching Docs](https://learn.microsoft.com/azure/api-management/azure-openai-enable-semantic-caching)
 - [Token Limits & LLM Logs](https://learn.microsoft.com/azure/api-management/api-management-howto-llm-logs)
 - [Content Safety Policies](https://learn.microsoft.com/azure/api-management/llm-content-safety-policy)
 - [APIM Policies Reference](https://learn.microsoft.com/azure/api-management/api-management-policies)

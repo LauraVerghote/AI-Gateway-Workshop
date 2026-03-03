@@ -23,12 +23,6 @@ param chatModelName string = 'gpt-4o-mini'
 @description('Chat model version')
 param chatModelVersion string = '2024-07-18'
 
-@description('Embedding model to deploy')
-param embeddingModelName string = 'text-embedding-3-small'
-
-@description('Embedding model version')
-param embeddingModelVersion string = '1'
-
 @description('Tokens per minute for models (in thousands)')
 param modelCapacity int = 30
 
@@ -74,8 +68,6 @@ module foundryPrimary 'modules/foundry.bicep' = {
     name: 'ais-aigateway-${uniqueSuffix}'
     modelName: chatModelName
     modelVersion: chatModelVersion
-    embeddingModelName: embeddingModelName
-    embeddingModelVersion: embeddingModelVersion
     capacity: modelCapacity
   }
 }
@@ -90,8 +82,6 @@ module foundrySecondary 'modules/foundry.bicep' = if (enableSecondaryFoundry) {
     name: 'ais-aigateway2-${uniqueSuffix}'
     modelName: chatModelName
     modelVersion: chatModelVersion
-    embeddingModelName: embeddingModelName
-    embeddingModelVersion: embeddingModelVersion
     capacity: modelCapacity
   }
 }
@@ -127,31 +117,12 @@ param enableApiConfig bool = false
 @description('Policy XML content to apply to the Microsoft Foundry API. Override via parameters file.')
 param policyXml string = loadTextContent('../policies/base-policy.xml')
 
-@description('Enable embeddings backend for semantic caching')
-param enableEmbeddingsBackend bool = false
-
-@description('Deploy Redis Enterprise with RediSearch for semantic caching (requires Marketplace)')
-param enableEnterpriseRedis bool = false
-
 @description('Enable content safety backend and RBAC')
 param enableContentSafety bool = false
 
 // ===========================================================================
-// Azure Cache for Redis (for Semantic Caching lab)
-// Required as external cache for APIM semantic cache policies
-// ===========================================================================
-module redis 'modules/redis.bicep' = if (enableEmbeddingsBackend) {
-  name: 'deploy-redis'
-  params: {
-    location: location
-    name: 'redis-aigateway-${uniqueSuffix}'
-    apimName: apim.outputs.name
-    enableEnterprise: enableEnterpriseRedis
-  }
-}
 
-// ===========================================================================
-// RBAC: Cognitive Services User for Content Safety (Lab 5)
+// RBAC: Cognitive Services User for Content Safety (Lab 4)
 // Broader role than OpenAI User — required for Content Safety API access
 // ===========================================================================
 module rbacContentSafety 'modules/role-assignment.bicep' = if (enableContentSafety) {
@@ -174,11 +145,11 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     apimName: apim.outputs.name
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
-    embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}/embeddings' : ''
+    embeddingsBackendUrl: ''
     contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
     secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
   }
-  dependsOn: [rbacPrimary, redis, rbacContentSafety, rbacSecondary]
+  dependsOn: [rbacPrimary, rbacContentSafety, rbacSecondary]
 }
 
 // ===========================================================================

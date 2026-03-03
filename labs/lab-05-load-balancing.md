@@ -1,4 +1,4 @@
-# Lab 6: Load Balancing with Retry
+# Lab 5: Load Balancing with Retry
 
 > Distribute traffic across multiple Microsoft Foundry backends with automatic failover
 
@@ -116,7 +116,7 @@ Open `policies/load-balancing.xml` and review how it differs from the managed id
 
 Two key differences from Lab 2's policy:
 
-| Section | Lab 2 (basic) | Lab 6 (load balanced) |
+| Section | Lab 2 (basic) | Lab 5 (load balanced) |
 |---------|---------------|------------------------|
 | `inbound` | `set-backend-service backend-id="openai-backend"` | `set-backend-service backend-id="openai-pool"` |
 | `backend` | `<base />` (default forward) | `<retry>` block with failover logic |
@@ -159,7 +159,7 @@ This deployment does the following:
 
 | Resource | Type | What it does |
 |----------|------|-------------|
-| `ais-aigateway2-<suffix>` | Microsoft Foundry (East US) | Second AI Services instance with gpt-4o-mini + embeddings |
+| `ais-aigateway2-<suffix>` | Microsoft Foundry (East US) | Second AI Services instance with gpt-4o-mini |
 | RBAC assignment | Role Assignment | Gives APIM managed identity access to the secondary Foundry |
 | `openai-backend-secondary` | APIM Backend | Points to the secondary Foundry endpoint |
 | `openai-pool` | APIM Backend Pool | Distributes traffic 60/40 across primary and secondary |
@@ -237,7 +237,7 @@ for ($i = 1; $i -le 5; $i++) {
 }
 ```
 
-All requests should succeed. The backend pool distributes them across your two Foundry instances automatically — you won't see which backend handled which request at this level (the pool is invisible to the client). In Lab 7, you'll use Application Insights to see the actual backend distribution.
+All requests should succeed. The backend pool distributes them across your two Foundry instances automatically — you won't see which backend handled which request at this level (the pool is invisible to the client). In Lab 6, you'll use Application Insights to see the actual backend distribution.
 
 > **Tip:** To test the retry/failover behavior, you could temporarily lower the TPM quota on one of your Foundry deployments to trigger 429 errors. The retry policy will automatically route those requests to the other backend.
 
@@ -276,5 +276,5 @@ Client                        │       │  - gpt-4o-mini           │
 - [Retry Policy](https://learn.microsoft.com/azure/api-management/retry-policy)
 
 ---
-**Previous lab:** [← Lab 5 - Content Safety](lab-05-content-safety.md)  
-**Next lab:** [Lab 7 - Monitoring →](lab-07-monitoring.md)
+**Previous lab:** [← Lab 4 - Content Safety](lab-04-content-safety.md)  
+**Next lab:** [Lab 6 - Monitoring →](lab-06-monitoring.md)

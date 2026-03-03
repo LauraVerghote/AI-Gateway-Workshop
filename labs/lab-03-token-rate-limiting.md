@@ -191,4 +191,4 @@ To experiment, edit `policies/token-rate-limit.xml`, change the values below, an
 
 ---
 **Previous lab:** [← Lab 2 - Foundry Backend](lab-02-add-openai-backend.md)  
-**Next lab:** [Lab 4 - Semantic Caching →](lab-04-semantic-caching.md)
+**Next lab:** [Lab 4 - Content Safety →](lab-04-content-safety.md)

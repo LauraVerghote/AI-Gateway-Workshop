@@ -14,12 +14,6 @@ param modelName string
 @description('Chat model version')
 param modelVersion string
 
-@description('Embedding model name')
-param embeddingModelName string
-
-@description('Embedding model version')
-param embeddingModelVersion string
-
 @description('Model capacity (TPM in thousands)')
 param capacity int = 30
 
@@ -68,24 +62,6 @@ resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-0
     }
   }
   dependsOn: [project]
-}
-
-// Embedding model deployment (needed for semantic caching)
-resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-09-01' = {
-  parent: aiServices
-  name: embeddingModelName
-  sku: {
-    name: 'GlobalStandard'
-    capacity: capacity
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: embeddingModelName
-      version: embeddingModelVersion
-    }
-  }
-  dependsOn: [chatDeployment]
 }
 
 output id string = aiServices.id

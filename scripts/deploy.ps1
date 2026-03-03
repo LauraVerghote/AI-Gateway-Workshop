@@ -84,15 +84,6 @@ az apim backend create `
     --url "${foundryEndpoint}openai" `
     --output none 2>$null
 
-# Foundry embeddings backend  
-az apim backend create `
-    --resource-group $ResourceGroup `
-    --service-name $apimName `
-    --backend-id "embeddings-backend" `
-    --protocol "http" `
-    --url "${foundryEndpoint}openai/deployments/text-embedding-3-small" `
-    --output none 2>$null
-
 Write-Host "  Backends configured." -ForegroundColor Green
 
 # Summary

@@ -1,4 +1,4 @@
-# Lab 7: Monitoring & Token Metrics
+# Lab 6: Monitoring & Token Metrics
 
 > Track token consumption and request patterns with Application Insights
 
@@ -8,7 +8,7 @@ In this lab you will:
 - Add the **`azure-openai-emit-token-metric`** policy to track token usage per subscription, model, and client
 - Enable **API-level diagnostics** to log full request/response details to Application Insights
 - Generate test traffic and **view custom metrics** in the Azure Portal
-- Run **KQL queries** to analyze token consumption, cache hit ratios, and error patterns
+- Run **KQL queries** to analyze token consumption and error patterns
 
 ## Background
 
@@ -48,7 +48,7 @@ The metrics appear under a custom namespace (we use `AIGateway`) in Application 
 
 ## Understanding the policy
 
-Open `policies/monitoring.xml` — this is the load balancing policy from Lab 6 with one addition: the `azure-openai-emit-token-metric` block in the `inbound` section.
+Open `policies/monitoring.xml` — this is the load balancing policy from Lab 5 with one addition: the `azure-openai-emit-token-metric` block in the `inbound` section.
 
 ```xml
 <policies>
@@ -89,7 +89,7 @@ Open `policies/monitoring.xml` — this is the load balancing policy from Lab 6 
 </policies>
 ```
 
-Compared to Lab 6, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same. The metric emission happens in `inbound` because APIM evaluates it after the response comes back — despite being in the inbound section, the token counts are extracted from the response body automatically by the policy.
+Compared to Lab 5, the only new block is `azure-openai-emit-token-metric`. Everything else (managed identity auth, backend pool, retry logic) stays the same. The metric emission happens in `inbound` because APIM evaluates it after the response comes back — despite being in the inbound section, the token counts are extracted from the response body automatically by the policy.
 
 ## Steps
 
@@ -114,7 +114,6 @@ $policyXml = Get-Content -Path "../policies/monitoring.xml" -Raw
     location                = @{ value = $LOCATION }
     enableApiConfig         = @{ value = $true }
     enableSecondaryFoundry  = @{ value = $true }
-    enableEmbeddingsBackend = @{ value = $true }
     policyXml               = @{ value = $policyXml }
   }
 } | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
@@ -126,7 +125,7 @@ az deployment group create `
   --parameters temp-params.json
 ```
 
-This is a quick deployment (~1-2 minutes) if Redis was already deployed in Lab 4. If this is your first time deploying with `enableEmbeddingsBackend`, it takes **~15-20 minutes** for Redis provisioning.
+This is a quick deployment (~1-2 minutes) since no new infrastructure is needed — it just updates the APIM policy.
 
 ### Step 2: Enable API diagnostics
 
@@ -181,7 +180,7 @@ Write-Host "Subscription Key: $SUB_KEY"
 
 ### Step 4: Generate test traffic
 
-Send a batch of varied requests to create meaningful telemetry data. This includes duplicate questions to see if they hit the semantic cache (if you still have caching enabled from Lab 4):
+Send a batch of varied requests to create meaningful telemetry data:
 
 ```powershell
 $headers = @{
@@ -191,13 +190,13 @@ $headers = @{
 
 $questions = @(
     "What is Azure API Management?",
-    "Explain how semantic caching works.",
-    "What are the benefits of load balancing?",
+    "Explain how load balancing works.",
+    "What are the benefits of rate limiting?",
     "How does token rate limiting work?",
     "What is a managed identity?",
     "Describe the AI Gateway architecture.",
-    "What is Azure API Management?",        # Duplicate — may hit cache
-    "How does semantic caching work?"        # Similar — may hit cache
+    "What is Azure API Management?",        # Duplicate
+    "How does load balancing work?"           # Similar
 )
 
 foreach ($question in $questions) {
@@ -222,9 +221,7 @@ foreach ($question in $questions) {
 }
 ```
 
-Each response shows the token breakdown. For requests that go to the model, the `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
-
-> **Note on cache hits:** If you have **Redis Enterprise** with RediSearch deployed (`enableEnterpriseRedis=true`), duplicate/similar questions will return cached responses with no token usage. With Basic Redis, the cache policies silently fall through and all requests go to the model — you'll see token usage on every request, which is still useful for monitoring.
+Each response shows the token breakdown. The `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
 
 ### Step 5: View metrics in Application Insights
 
@@ -324,10 +321,9 @@ After this lab you will have:
 │           │◄──│  Policies:                                   │
 └──────────┘    │  1. ✅ Managed Identity Auth       (Lab 2)   │
                 │  2. ✅ Token Rate Limiting          (Lab 3)   │
-                │  3. ✅ Semantic Caching             (Lab 4)   │
-                │  4. ✅ Content Safety               (Lab 5)   │
-                │  5. ✅ Load Balancing + Retry       (Lab 6)   │
-                │  6. ✅ Token Metrics Emission       (Lab 7)   │
+                │  3. ✅ Content Safety               (Lab 4)   │
+                │  4. ✅ Load Balancing + Retry       (Lab 5)   │
+                │  5. ✅ Token Metrics Emission       (Lab 6)   │
                 └──────┬───────────────────┬───────────────────┘
                        │                   │
               ┌────────▼────────┐ ┌────────▼────────┐
@@ -335,7 +331,6 @@ After this lab you will have:
               │ Foundry         │ │ Foundry         │
               │ Sweden Central  │ │ East US         │
               │ - gpt-4o-mini   │ │ - gpt-4o-mini   │
-              │ - embeddings    │ │ - embeddings    │
               └─────────────────┘ └─────────────────┘
 ```
 
@@ -347,7 +342,7 @@ After this lab you will have:
 - [Monitoring Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/zero-to-production)
 
 ---
-**Previous lab:** [← Lab 6 - Load Balancing](lab-06-load-balancing.md)
+**Previous lab:** [← Lab 5 - Load Balancing](lab-05-load-balancing.md)
 
 ---
 
@@ -358,7 +353,6 @@ You have completed the full AI Gateway Workshop! You now have a production-ready
 - ✅ **Lab 1** — Infrastructure deployed (APIM, Foundry, App Insights)
 - ✅ **Lab 2** — Managed identity authentication (no API keys)
 - ✅ **Lab 3** — Token rate limiting for cost control
-- ✅ **Lab 4** — Semantic caching for cost savings
-- ✅ **Lab 5** — Content safety for responsible AI
-- ✅ **Lab 6** — Load balancing for high availability
-- ✅ **Lab 7** — Monitoring with Application Insights
+- ✅ **Lab 4** — Content safety for responsible AI
+- ✅ **Lab 5** — Load balancing for high availability
+- ✅ **Lab 6** — Monitoring with Application Insights

@@ -1,4 +1,4 @@
-# Lab 5: Content Safety
+# Lab 4: Content Safety
 
 > Filter harmful content and detect jailbreak attempts using APIM's built-in Content Safety policies
 
@@ -225,5 +225,5 @@ To try a different threshold, edit `policies/content-safety.xml`, change the thr
 - [Azure AI Content Safety](https://learn.microsoft.com/azure/ai-services/content-safety/)
 
 ---
-**Previous lab:** [← Lab 4 - Semantic Caching](lab-04-semantic-caching.md)  
-**Next lab:** [Lab 6 - Load Balancing →](lab-06-load-balancing.md)
+**Previous lab:** [← Lab 3 - Token Rate Limiting](lab-03-token-rate-limiting.md)  
+**Next lab:** [Lab 5 - Load Balancing →](lab-05-load-balancing.md)
