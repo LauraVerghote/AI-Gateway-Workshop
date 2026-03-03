@@ -212,7 +212,7 @@ Client Request
 │  API Management      │ ──────────────────────►  │  Microsoft       │
 │  (Gateway)           │     Bearer Token         │  Foundry         │
 │  - Policy: Auth MI   │ ◄──────────────────────  │  - gpt-4o-mini   │
-│  - Backend: openai   │     Response             │  - embeddings    │
+│  - Backend: openai   │     Response             │                  │
 └──────────────────────┘                          └──────────────────┘
 ```
 
