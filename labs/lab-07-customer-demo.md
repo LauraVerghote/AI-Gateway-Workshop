@@ -42,7 +42,7 @@ This deploys a single combined policy (`policies/demo.xml`) that includes **all*
 > **If you just finished Lab 6 in the same terminal**, your variables are already set — skip to the deployment command.
 
 ```powershell
-$RESOURCE_GROUP = "rg-aigateway-workshop-ucb"
+$RESOURCE_GROUP = "rg-aigateway-workshop-<ID>"
 $LOCATION = "swedencentral"
 ```
 
