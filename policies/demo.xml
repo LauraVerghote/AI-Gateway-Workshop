@@ -1,0 +1,55 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Authenticate with managed identity -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <!-- Use backend pool for load balancing -->
+        <set-backend-service backend-id="openai-pool" />
+        <!-- Content Safety: block severity 4+ content and detect jailbreaks -->
+        <llm-content-safety backend-id="content-safety-backend" shield-prompt="true">
+            <categories output-type="EightSeverityLevels">
+                <category name="Hate" threshold="4" />
+                <category name="Sexual" threshold="4" />
+                <category name="SelfHarm" threshold="4" />
+                <category name="Violence" threshold="4" />
+            </categories>
+        </llm-content-safety>
+        <!-- Token rate limiting: max 500 tokens per minute per subscription -->
+        <azure-openai-token-limit 
+            counter-key="@(context.Subscription.Id)"
+            tokens-per-minute="500" 
+            estimate-prompt-tokens="false" 
+            remaining-tokens-variable-name="remainingTokens" />
+        <!-- Emit token metrics to Application Insights -->
+        <azure-openai-emit-token-metric namespace="AIGateway">
+            <dimension name="Subscription ID" value="@(context.Subscription.Id)" />
+            <dimension name="Client IP" value="@(context.Request.IpAddress)" />
+            <dimension name="API ID" value="@(context.Api.Id)" />
+            <dimension name="Model" value="@(context.Request.MatchedParameters["deployment-id"])" />
+        </azure-openai-emit-token-metric>
+    </inbound>
+    <backend>
+        <!-- Retry on 429 (rate limit) or 503 (service unavailable) -->
+        <retry count="2" interval="0" first-fast-retry="true" 
+            condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
+            <set-backend-service backend-id="openai-pool" />
+            <forward-request buffer-request-body="true" />
+        </retry>
+    </backend>
+    <outbound>
+        <!-- Show remaining tokens in response header -->
+        <set-header name="X-Tokens-Remaining" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;int&gt;("remainingTokens", 0).ToString())</value>
+        </set-header>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
