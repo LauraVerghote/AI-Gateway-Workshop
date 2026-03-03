@@ -124,11 +124,14 @@ module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryFoundr
 @description('Enable APIM API configuration (backend, API import, policy, subscription)')
 param enableApiConfig bool = false
 
-@description('Policy XML content to apply to the Microsoft Foundry API')
-param policyXml string = '<policies><inbound><base /></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>'
+@description('Policy XML content to apply to the Microsoft Foundry API. Override via parameters file.')
+param policyXml string = loadTextContent('../policies/base-policy.xml')
 
 @description('Enable embeddings backend for semantic caching')
 param enableEmbeddingsBackend bool = false
+
+@description('Deploy Redis Enterprise with RediSearch for semantic caching (requires Marketplace)')
+param enableEnterpriseRedis bool = false
 
 @description('Enable content safety backend and RBAC')
 param enableContentSafety bool = false
@@ -143,6 +146,7 @@ module redis 'modules/redis.bicep' = if (enableEmbeddingsBackend) {
     location: location
     name: 'redis-aigateway-${uniqueSuffix}'
     apimName: apim.outputs.name
+    enableEnterprise: enableEnterpriseRedis
   }
 }
 
@@ -170,7 +174,7 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     apimName: apim.outputs.name
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
-    embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}' : ''
+    embeddingsBackendUrl: enableEmbeddingsBackend ? '${foundryPrimary.outputs.endpoint}openai/deployments/${embeddingModelName}/embeddings' : ''
     contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
     secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
   }

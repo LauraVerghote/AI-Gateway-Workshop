@@ -221,7 +221,7 @@ foreach ($question in $questions) {
 }
 ```
 
-Each response shows the token breakdown. The Foundry models return token usage in the standard OpenAI `usage` format — the `azure-openai-emit-token-metric` policy reads these same numbers and emits them to Application Insights as custom metrics.
+Each response shows the token breakdown. For **cache hits** (duplicate/similar questions), you'll see no token usage reported — the response comes from Redis instead of the model. For requests that go to the model, the `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
 
 ### Step 5: View metrics in Application Insights
 
