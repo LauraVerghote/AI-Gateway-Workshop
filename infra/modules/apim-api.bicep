@@ -12,9 +12,6 @@ param foundryEndpoint string
 @description('Policy XML content to apply to the API')
 param policyXml string
 
-@description('URL for the embeddings backend (optional, for semantic caching)')
-param embeddingsBackendUrl string = ''
-
 @description('URL for the content safety backend (optional, for content safety lab)')
 param contentSafetyBackendUrl string = ''
 
@@ -36,19 +33,6 @@ resource openAiBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-prev
   name: 'openai-backend'
   properties: {
     url: '${foundryEndpoint}openai'
-    protocol: 'http'
-  }
-}
-
-// ===========================================================================
-// Embeddings Backend (optional, for semantic caching lab)
-// Points to the specific embedding model deployment
-// ===========================================================================
-resource embeddingsBackend 'Microsoft.ApiManagement/service/backends@2024-06-01-preview' = if (!empty(embeddingsBackendUrl)) {
-  parent: apimService
-  name: 'embeddings-backend'
-  properties: {
-    url: embeddingsBackendUrl
     protocol: 'http'
   }
 }
@@ -131,7 +115,7 @@ resource openAiApiPolicy 'Microsoft.ApiManagement/service/apis/policies@2024-06-
     format: 'rawxml'
     value: policyXml
   }
-  dependsOn: [openAiBackend, embeddingsBackend, contentSafetyBackend, secondaryBackend, backendPool]
+  dependsOn: [openAiBackend, contentSafetyBackend, secondaryBackend, backendPool]
 }
 
 // ===========================================================================

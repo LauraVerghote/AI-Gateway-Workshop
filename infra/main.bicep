@@ -145,7 +145,6 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     apimName: apim.outputs.name
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
-    embeddingsBackendUrl: ''
     contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
     secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
   }
