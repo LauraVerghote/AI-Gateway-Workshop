@@ -111,10 +111,11 @@ $policyXml = Get-Content -Path "../policies/monitoring.xml" -Raw
   '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
   contentVersion = '1.0.0.0'
   parameters = @{
-    location              = @{ value = $LOCATION }
-    enableApiConfig       = @{ value = $true }
-    enableSecondaryFoundry = @{ value = $true }
-    policyXml             = @{ value = $policyXml }
+    location                = @{ value = $LOCATION }
+    enableApiConfig         = @{ value = $true }
+    enableSecondaryFoundry  = @{ value = $true }
+    enableEmbeddingsBackend = @{ value = $true }
+    policyXml               = @{ value = $policyXml }
   }
 } | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
 
@@ -125,7 +126,7 @@ az deployment group create `
   --parameters temp-params.json
 ```
 
-This is a quick deployment (~1-2 minutes) — it only updates the APIM policy. All other resources remain unchanged.
+This is a quick deployment (~1-2 minutes) if Redis was already deployed in Lab 4. If this is your first time deploying with `enableEmbeddingsBackend`, it takes **~15-20 minutes** for Redis provisioning.
 
 ### Step 2: Enable API diagnostics
 
@@ -221,7 +222,9 @@ foreach ($question in $questions) {
 }
 ```
 
-Each response shows the token breakdown. For **cache hits** (duplicate/similar questions), you'll see no token usage reported — the response comes from Redis instead of the model. For requests that go to the model, the `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
+Each response shows the token breakdown. For requests that go to the model, the `azure-openai-emit-token-metric` policy reads the token counts from the response and emits them to Application Insights as custom metrics.
+
+> **Note on cache hits:** If you have **Redis Enterprise** with RediSearch deployed (`enableEnterpriseRedis=true`), duplicate/similar questions will return cached responses with no token usage. With Basic Redis, the cache policies silently fall through and all requests go to the model — you'll see token usage on every request, which is still useful for monitoring.
 
 ### Step 5: View metrics in Application Insights
 

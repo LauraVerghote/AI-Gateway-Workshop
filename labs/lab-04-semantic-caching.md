@@ -34,6 +34,12 @@ How it works internally:
 - Microsoft Foundry with an **embedding model** (`text-embedding-3-small`) — already deployed by `main.bicep`
 - **Azure Cache for Redis** — deployed automatically in this lab (required by APIM to store semantic cache vectors)
 
+> **Important: Redis tier requirement**
+>
+> The `azure-openai-semantic-cache-lookup` policy requires **Redis Enterprise** with the **RediSearch** module for vector similarity search. The default deployment uses Basic C0 Redis, which does **not** support RediSearch — the cache policies will silently fall through and all requests go directly to Foundry.
+>
+> To enable working semantic caching, deploy with `enableEnterpriseRedis=true` (requires Azure Marketplace to be enabled on your subscription). If Marketplace is disabled by corporate policy, ask your tenant admin to enable it. You can still complete this lab with Basic Redis — the policy deploys successfully and the infrastructure is correct, but cache hits won't occur.
+
 ## Steps
 
 ### Step 1: Review the Semantic Cache Policy
