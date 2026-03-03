@@ -111,7 +111,7 @@ You're ready. Everything below is demo-time — just run commands, no deployment
 
 ## Demo 1: Send a request through the gateway
 
-**Talk track:** *"The gateway exposes an OpenAI-compatible API. Clients send requests exactly as they would to Azure OpenAI, but the URL points to our APIM gateway instead. APIM authenticates to the backend using its managed identity — no AI service keys are ever exposed to consumers."*
+The gateway exposes an OpenAI-compatible API. Clients send requests exactly as they would to Azure OpenAI, but the URL points to our APIM gateway instead. APIM authenticates to the backend using its managed identity. No AI service keys are ever exposed to consumers.
 
 ```powershell
 $body = @{
@@ -131,7 +131,7 @@ Point out the `usage` section in the response — it shows `prompt_tokens`, `com
 
 ## Demo 2: Token rate limiting
 
-**Talk track:** *"We can limit how many tokens each consumer can use per minute. This prevents any single team or app from exhausting the quota or running up costs. When the limit is hit, the gateway returns HTTP 429 — the model is never called."*
+We can limit how many tokens each consumer can use per minute. This prevents any single team or app from exhausting the quota or running up costs. When the limit is hit, the gateway returns HTTP 429 and the model is never called.
 
 ```powershell
 for ($i = 1; $i -le 5; $i++) {
@@ -170,7 +170,7 @@ for ($i = 1; $i -le 5; $i++) {
 
 ## Demo 3: Content safety & jailbreak detection
 
-**Talk track:** *"Before a prompt ever reaches the model, the gateway checks it against Azure Content Safety. It scores the prompt on four categories — Hate, Sexual, SelfHarm, Violence — and blocks anything above the threshold. It also detects jailbreak attempts like 'Ignore all previous instructions'."*
+Before a prompt ever reaches the model, the gateway checks it against Azure Content Safety. It scores the prompt on four categories (Hate, Sexual, SelfHarm, Violence) and blocks anything above the threshold. It also detects jailbreak attempts like 'Ignore all previous instructions'.
 
 ```powershell
 # Normal question — should pass
@@ -212,7 +212,7 @@ try {
 
 ## Demo 4: Load balancing
 
-**Talk track:** *"The gateway distributes traffic across multiple AI backend instances in different regions — 60% to Sweden Central, 40% to East US. If one backend hits rate limits or goes down, the retry policy automatically routes to another — completely transparent to the client. In fact, all the requests in the previous demos were already being load balanced — let me prove it."*
+The gateway distributes traffic across multiple AI backend instances in different regions — 60% to Sweden Central, 40% to East US. If one backend hits rate limits or goes down, the retry policy automatically routes to another — completely transparent to the client. In fact, all the requests in the previous demos were already being load balanced. The code below proved this.
 
 Show the backend pool configuration:
 
@@ -259,7 +259,7 @@ for ($i = 1; $i -le 10; $i++) {
 
 ## Demo 5: Monitoring (Azure Portal)
 
-**Talk track:** *"Every request flowing through the gateway emits token metrics to Application Insights — broken down by model, subscription, and client IP. This gives you full visibility into who's consuming what."*
+Every request flowing through the gateway emits token metrics to Application Insights — broken down by model, subscription, and client IP. This gives you full visibility into who's consuming what.
 
 Open the Azure Portal and navigate to **Application Insights** (`appi-aigateway-br2uhdrt4lfxc`).
 
