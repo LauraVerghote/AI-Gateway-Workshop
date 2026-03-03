@@ -131,6 +131,24 @@ resource testSubscription 'Microsoft.ApiManagement/service/subscriptions@2024-06
 }
 
 // ===========================================================================
+// API Diagnostic: Connects the API to Application Insights
+// Enables custom metrics from azure-openai-emit-token-metric policy
+// ===========================================================================
+resource apiDiagnostic 'Microsoft.ApiManagement/service/apis/diagnostics@2024-06-01-preview' = {
+  parent: openAiApi
+  name: 'applicationinsights'
+  properties: {
+    loggerId: '${apimService.id}/loggers/app-insights-logger'
+    alwaysLog: 'allErrors'
+    metrics: true
+    sampling: {
+      samplingType: 'fixed'
+      percentage: 100
+    }
+  }
+}
+
+// ===========================================================================
 // Outputs
 // ===========================================================================
 output apiId string = openAiApi.id

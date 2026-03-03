@@ -44,7 +44,7 @@ This APIM policy works with **Azure OpenAI in Microsoft Foundry models**. It rea
 | `API ID` | `context.Api.Id` | Which API was called |
 | `Model` | `context.Request.MatchedParameters["deployment-id"]` | Which model deployment (gpt-4o-mini, etc.) |
 
-The metrics appear under a custom namespace (we use `AIGateway`) in Application Insights, so they don't get mixed up with built-in metrics.
+The metrics appear under the `azure.applicationinsights` custom namespace in Application Insights Metrics explorer. In the `customMetrics` log table, they appear as `Prompt Tokens`, `Completion Tokens`, and `Total Tokens`.
 
 ## Understanding the policy
 
@@ -129,7 +129,7 @@ This is a quick deployment (~1-2 minutes) since no new infrastructure is needed 
 
 ### Step 2: Enable API diagnostics
 
-The APIM logger was created in Lab 1, but it's not yet connected to our API. API diagnostics tell APIM to send detailed request/response information (headers, status codes, duration, backend URL) to Application Insights for every API call.
+The APIM logger was created in Lab 1, but it's not yet connected to our API. API diagnostics tell APIM to send detailed request/response information (headers, status codes, duration, backend URL) to Application Insights for every API call. The `metrics = true` setting is critical — without it, the `azure-openai-emit-token-metric` policy won't emit custom metrics.
 
 ```powershell
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
@@ -140,6 +140,7 @@ $SUBSCRIPTION_ID = az account show --query "id" -o tsv
   properties = @{
     loggerId = "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/loggers/app-insights-logger"
     alwaysLog = "allErrors"
+    metrics = $true
     sampling = @{ percentage = 100; samplingType = "fixed" }
     frontend = @{
       request  = @{ body = @{ bytes = 0 } }
@@ -159,6 +160,7 @@ az rest --method put `
 ```
 
 Key settings:
+- **`metrics = true`** — required for `azure-openai-emit-token-metric` to emit custom metrics to Application Insights
 - **`sampling.percentage = 100`** — log every request (in production you'd lower this to reduce costs)
 - **`alwaysLog = "allErrors"`** — always log errors regardless of sampling
 - **`body.bytes = 0`** — don't log request/response bodies (they can contain sensitive data and are large)
@@ -233,8 +235,8 @@ Each response shows the token breakdown. The `azure-openai-emit-token-metric` po
 2. Navigate to your **Application Insights** resource (named `appi-aigateway-<suffix>`)
 3. Go to **Monitoring → Metrics**
 4. Configure the chart:
-   - **Metric namespace:** select `AIGateway` (under "Custom" — this is the namespace from the policy)
-   - **Metric:** choose `Prompt Token Count`, `Completion Token Count`, or `Total Token Count`
+   - **Metric namespace:** select `azure.applicationinsights` (under "Custom")
+   - **Metric:** choose `Prompt Tokens`, `Completion Tokens`, or `Total Tokens`
    - **Aggregation:** `Sum`
    - **Apply splitting:** click "Apply splitting" and split by `Subscription ID` or `Model`
 
@@ -250,7 +252,7 @@ This shows total tokens used per hour, split by model:
 
 ```kql
 customMetrics
-| where name startswith "AIGateway"
+| where name contains "Tokens"
 | where name contains "Total"
 | summarize TotalTokens = sum(value) by bin(timestamp, 1h), tostring(customDimensions["Model"])
 | render timechart
@@ -262,7 +264,7 @@ See which API consumers are using the most tokens:
 
 ```kql
 customMetrics
-| where name == "AIGateway/Total Token Count"
+| where name == "Total Tokens"
 | summarize TotalTokens = sum(value) by tostring(customDimensions["Subscription ID"])
 | order by TotalTokens desc
 | render barchart
@@ -301,7 +303,7 @@ requests
 ## Expected result
 
 After this lab you will have:
-- ✅ Token metrics (`Prompt Token Count`, `Completion Token Count`, `Total Token Count`) visible under the custom `AIGateway` namespace in Application Insights
+- ✅ Token metrics (`Prompt Tokens`, `Completion Tokens`, `Total Tokens`) visible under the `azure.applicationinsights` custom metric namespace in Application Insights
 - ✅ Custom dimensions (Subscription ID, Model, Client IP, API ID) available for filtering and splitting
 - ✅ API-level diagnostics logging every request to Application Insights
 - ✅ KQL queries for token consumption, success rates, and error tracking
