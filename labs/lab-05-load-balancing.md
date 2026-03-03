@@ -199,13 +199,16 @@ az rest --method get `
   | ConvertFrom-Json | Select-Object -ExpandProperty value | Select-Object name, @{N='type';E={$_.properties.type}}, @{N='url';E={$_.properties.url}} | Format-Table
 ```
 
-You should see three backends:
+You should see four backends:
 
 | Name | Type | URL |
 |------|------|-----|
-| `openai-backend` | *(single)* | `https://ais-aigateway-xxx.openai.azure.com/openai` |
-| `openai-backend-secondary` | *(single)* | `https://ais-aigateway2-xxx.openai.azure.com/openai` |
+| `content-safety-backend` | *(single)* | `https://ais-aigateway-xxx.cognitiveservices.azure.com/contentsafety` |
+| `openai-backend` | *(single)* | `https://ais-aigateway-xxx.cognitiveservices.azure.com/openai` |
+| `openai-backend-secondary` | *(single)* | `https://ais-aigateway2-xxx.cognitiveservices.azure.com/openai` |
 | `openai-pool` | Pool | *(empty — pool uses its member backends)* |
+
+> **Note:** The `content-safety-backend` is still present from Lab 4. This is expected — each lab builds on the previous one.
 
 ### Step 5: Test load balancing
 
