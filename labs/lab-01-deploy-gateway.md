@@ -48,7 +48,9 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
    - **Resource group**: `rg-aigateway-workshop`
    - **Region**: `Sweden Central`
 
-   <img src="images/lab-01/RG2.png" width="500"/>
+
+      <img src="images/lab-01/RG2.png" width="500"/>
+
 
 4. Click **Review + create** → **Create**
 
@@ -68,7 +70,9 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
    - **Subscription**: Your subscription
    - **Log Analytics Workspace**: Leave default (should show (new) `DefaultWorkspace-...`)
 
-   <img src="images/lab-01/insight2.png" width="500"/>
+
+      <img src="images/lab-01/insight2.png" width="500"/>
+
 
 4. Click **Review + create** → **Create**
 
@@ -86,13 +90,17 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
    - **Administrator email**: Your email
    - **Pricing tier**: **Basicv2**
 
-   <img src="images/lab-01/API2.png" width="1000"/>
+
+      <img src="images/lab-01/API2.png" width="1000"/>
+
 
 3. **Monitor + secure** tab: 
    - Toggle **Application Insights** to **On**
    - Select the `appi-aigateway` Application Insights instance
 
-   <img src="images/lab-01/API3.png" width="500"/>
+
+      <img src="images/lab-01/API3.png" width="500"/>
+
 
 4. **Managed identity** tab: Toggle **System assigned** to **On**
 5. Click **Review + create** → **Create**
@@ -114,11 +122,12 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
    - **Region**: `Sweden Central`
    - **Default project name**: `ais-aigateway-<unique-suffix>`
 
-   <img src="images/lab-01/Foundry2.png" width="500"/>
+
+      <img src="images/lab-01/Foundry2.png" width="500"/>
 
 3. Click **Review + create** → **Create**
 
-#### Deploy the gpt-4o-mini model
+### 5. Deploy the gpt-4o-mini model
 
 1. Wait for the deployment to finish and the press **Go to resource** and then **Go to Foundry portal**
 
@@ -134,7 +143,7 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
 
    <img src="images/lab-01/Foundry6.png" width="1000"/>
 
-### 5. Set up RBAC
+### 6. Set up RBAC
 
 1. Navigate to your **Microsft Foundry** resource in the azure portal
 2. Go to **Access control (IAM)** 
