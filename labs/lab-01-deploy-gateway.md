@@ -91,7 +91,7 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
    - **Pricing tier**: **Basicv2**
 
 
-      <img src="images/lab-01/API2.png" width="1000"/>
+      <img src="images/lab-01/API2.png" width="500"/>
 
 
 3. **Monitor + secure** tab: 
