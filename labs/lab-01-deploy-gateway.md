@@ -178,13 +178,9 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
 <details>
 <summary><strong>Click to expand CLI instructions</strong></summary>
 
-### 1. Set up your environment
+### 1. Login to Azure
 
 ```powershell
-# From the repository root
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 az login
 ```
 
@@ -240,16 +236,28 @@ Gateway URL: https://apim-aigateway-abc123.azure-api.net
 <details>
 <summary><strong>Click to expand Bicep instructions</strong></summary>
 
-### 1. Set up and login
+### What is Bicep?
+
+[Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview) is Azure's domain-specific language (DSL) for deploying infrastructure as code (IaC). It compiles down to ARM templates but offers a much cleaner, more readable syntax. In this workshop we use Bicep to deploy all Azure resources in a repeatable, version-controlled way — instead of clicking through the portal.
+
+> **Why Bicep over portal clicks?** Infrastructure as code means your deployment is repeatable, reviewable, and can be torn down and recreated in minutes. It also makes it easy to enable features progressively across labs using parameter flags.
+
+### Prerequisites
+
+- **Azure CLI** — [Install Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) (v2.67+). The CLI includes built-in Bicep support; no separate Bicep install is needed.
+- An Azure subscription with permission to create resources.
+
+### 1. Login to Azure
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 az login
 ```
 
+This opens a browser for authentication. After login, the CLI stores your credentials locally so subsequent commands are authenticated.
+
 ### 2. Create a Resource Group
+
+A [resource group](https://learn.microsoft.com/azure/azure-resource-manager/management/manage-resource-groups-portal) is a logical container for all the Azure resources you'll deploy. Everything in this workshop goes into one group, making cleanup easy (`az group delete`).
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop"
@@ -258,9 +266,15 @@ $LOCATION = "swedencentral"
 az group create --name $RESOURCE_GROUP --location $LOCATION
 ```
 
+> 💡 **Location choice:** We use `swedencentral` because it supports the GPT-4.1-mini model and the Basicv2 APIM SKU. Change this if your subscription requires a different region.
+
 ### 3. Deploy with the parameter file
 
-The repository includes `infra/main.bicepparam` with sensible defaults. Deploy in one command:
+The deployment uses two files:
+- **`main.bicep`** — the template that defines *what* to deploy (resources, modules, conditional logic).
+- **`main.bicepparam`** — the parameter file that defines *how* to deploy it (region, model name, capacity, feature flags). This keeps environment-specific values separate from the template logic.
+
+Deploy in one command:
 
 ```powershell
 cd infra
@@ -271,31 +285,48 @@ az deployment group create `
   --parameters main.bicepparam
 ```
 
-> ⏱️ Deployment takes ~5-10 minutes for Basicv2.
+> ⏱️ Deployment takes ~5-10 minutes. Most of it is API Management (Basicv2 SKU) provisioning.
 
-### Understanding the Bicep modules
+#### What gets deployed in Lab 1?
+
+The `main.bicepparam` file has conservative defaults — it deploys only the **base infrastructure**:
+
+| Resource | Purpose |
+|----------|---------|
+| **API Management** (Basicv2) | The gateway that sits in front of your AI models. Deployed with a system-assigned managed identity. |
+| **Microsoft Foundry** (AI Services) | Hosts the `gpt-4.1-mini` model deployment. |
+| **Application Insights** + **Log Analytics** | Monitoring and logging for the gateway. |
+| **RBAC role assignment** | Grants APIM's managed identity the *Cognitive Services OpenAI User* role on the Foundry resource — this enables keyless (managed identity) authentication. |
+
+No API configuration, policies, or secondary backends are deployed yet — those are added in later labs via parameter flags.
+
+### Understanding the Bicep project structure
 
 ```
 infra/
 ├── main.bicep              ← Orchestrator: conditional flags control what gets deployed
 ├── main.bicepparam         ← Default parameters (Lab 1 baseline)
-├── all-features.bicepparam ← Full deployment with all features (see README)
+├── all-features.bicepparam ← Full deployment with all features enabled
 └── modules/
     ├── apim.bicep           ← API Management (Basicv2) + App Insights logger
-    ├── foundry.bicep        ← Microsoft Foundry + gpt-4o-mini model
-    ├── app-insights.bicep   ← Application Insights + Log Analytics
-    ├── role-assignment.bicep ← RBAC role assignments
-    └── apim-api.bicep       ← Backend, API import, policy, subscription
+    ├── foundry.bicep        ← Microsoft Foundry + gpt-4.1-mini model deployment
+    ├── app-insights.bicep   ← Application Insights + Log Analytics workspace
+    ├── role-assignment.bicep ← RBAC role assignments (managed identity → Foundry)
+    └── apim-api.bicep       ← Backend, API import, policy, subscription key
 ```
 
-Key parameters in `main.bicep`:
+The template uses a **modular, feature-flag pattern**: `main.bicep` calls child modules, and boolean parameters control which modules get deployed. This lets you progressively enable features across labs without changing the template itself — only the parameters change.
+
+#### Key parameters in `main.bicep`
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `enableApiConfig` | `false` | Deploy backend + API + policy (Lab 2+) |
-| `enableContentSafety` | `false` | Content Safety backend + RBAC (Lab 4) |
-| `enableSecondaryFoundry` | `false` | Second Foundry + backend pool (Lab 5) |
-| `policyXml` | `base-policy.xml` | Policy XML to apply |
+| `enableApiConfig` | `false` | Deploy backend + API + policy (enabled in Lab 2) |
+| `enableContentSafety` | `false` | Content Safety backend + RBAC (enabled in Lab 4) |
+| `enableSecondaryFoundry` | `false` | Second Foundry instance for load balancing (enabled in Lab 5) |
+| `policyXml` | `base-policy.xml` | Which APIM policy XML to apply |
+
+> 💡 **Progressive deployment:** As you move through the labs, you'll edit `main.bicepparam` to flip these flags to `true` and re-run the same `az deployment group create` command. Bicep deployments are **idempotent** — running them again only changes what's different.
 
 ### 4. Verify
 
@@ -335,7 +366,7 @@ Regardless of which path you chose, navigate to your resource group in the [Azur
 │  ┌───────────────────────┐       ┌────────────────────────┐  │
 │  │  API Management       │       │  Microsoft Foundry     │  │
 │  │  (Basicv2)            │       │  (AI Services)         │  │
-│  │  - Managed Identity ──┼─RBAC─►│  - gpt-4o-mini         │  │
+│  │  - Managed Identity ──┼─RBAC─►│  - gpt-4.1-mini        │  │
 │  │  - Gateway URL        │       │                        │  │
 │  └───────────────────────┘       └────────────────────────┘  │
 │                                                              │

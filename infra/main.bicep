@@ -15,13 +15,13 @@ param uniqueSuffix string = uniqueString(resourceGroup().id)
 param apimPublisherEmail string = 'workshop@contoso.com'
 
 @description('APIM publisher name')
-param apimPublisherName string = 'AI Gateway Workshop'
+param apimPublisherName string = 'AI Gateway Workshop 2'
 
 @description('Chat model to deploy')
-param chatModelName string = 'gpt-4o-mini'
+param chatModelName string = 'gpt-4.1-mini'
 
 @description('Chat model version')
-param chatModelVersion string = '2024-07-18'
+param chatModelVersion string = '2025-04-14'
 
 @description('Tokens per minute for models (in thousands)')
 param modelCapacity int = 30
@@ -106,7 +106,7 @@ module rbacSecondary 'modules/role-assignment.bicep' = if (enableSecondaryFoundr
   name: 'deploy-rbac-secondary'
   params: {
     principalId: apim.outputs.principalId
-    cognitiveServicesResourceId: enableSecondaryFoundry ? foundrySecondary.outputs.id : ''
+    cognitiveServicesResourceId: foundrySecondary!.outputs.id
     roleDefinitionId: 'a001fd3d-188f-4b5d-821b-7da978bf7442'
   }
 }
@@ -146,7 +146,7 @@ module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
     foundryEndpoint: foundryPrimary.outputs.endpoint
     policyXml: policyXml
     contentSafetyBackendUrl: enableContentSafety ? foundryPrimary.outputs.endpoint : ''
-    secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
+    secondaryFoundryEndpoint: enableSecondaryFoundry ? foundrySecondary!.outputs.endpoint : ''
   }
   dependsOn: [rbacPrimary, rbacContentSafety, rbacSecondary]
 }
@@ -159,6 +159,6 @@ output apimName string = apim.outputs.name
 output apimPrincipalId string = apim.outputs.principalId
 output foundryPrimaryEndpoint string = foundryPrimary.outputs.endpoint
 output foundryPrimaryName string = foundryPrimary.outputs.name
-output foundrySecondaryEndpoint string = enableSecondaryFoundry ? foundrySecondary.outputs.endpoint : ''
+output foundrySecondaryEndpoint string = enableSecondaryFoundry ? foundrySecondary!.outputs.endpoint : ''
 output appInsightsName string = appInsights.outputs.name
 output appInsightsConnectionString string = appInsights.outputs.connectionString
