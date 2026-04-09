@@ -258,35 +258,78 @@ $LOCATION = "swedencentral"
 
 ### 2. Deploy with API configuration
 
-This deployment enables `enableApiConfig` and applies the managed identity policy:
+This deployment enables `enableApiConfig` and applies the managed identity policy.
+
+> **Why a parameters file?** The policy XML is multiline. Passing it inline with `--parameters policyXml="$(…)"` truncates the content in PowerShell, causing an ARM validation error. Writing it to a JSON file first preserves the full XML.
+
+> **Run from the repo root.** The script starts with `cd infra`. If you're already in the `infra` folder, skip that line or run `cd ..` first.
 
 ```powershell
 cd infra
 
+$policyXml = Get-Content -Path "../policies/managed-identity-auth.xml" -Raw
+
+@{
+  '`$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+  contentVersion = '1.0.0.0'
+  parameters = @{
+    location        = @{ value = $LOCATION }
+    enableApiConfig = @{ value = $true }
+    policyXml       = @{ value = $policyXml }
+  }
+} | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
+
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file main.bicep `
-  --parameters location=$LOCATION `
-  --parameters enableApiConfig=true `
-  --parameters policyXml="$(Get-Content -Path '../policies/managed-identity-auth.xml' -Raw)"
+  --parameters temp-params.json
 ```
 
 ### What gets deployed
 
-The `enableApiConfig=true` flag triggers the `apim-api.bicep` module, which creates:
+In Lab 1, the Bicep template deployed the **base infrastructure**: APIM (BasicV2), Microsoft Foundry (AI Services) with a model deployment, Application Insights, and the RBAC role assignment giving APIM's managed identity access to Foundry. At that point, APIM existed but had no APIs, backends, or policies configured — it was an empty gateway.
 
-| Resource | Purpose |
-|----------|---------|
-| `openai-backend` | Backend pointing to Foundry endpoint |
-| `azure-openai-api` | API imported from OpenAI spec |
-| `policy` | Managed identity auth policy |
-| `test-sub` | Subscription scoped to the API |
-| `applicationinsights` diagnostic | API-level logging |
+This deployment adds the **API layer** on top — everything needed for APIM to actually receive requests and forward them to Foundry.
 
-The policy (`policies/managed-identity-auth.xml`) does three things in the inbound section:
-1. **`authentication-managed-identity`** — acquires a token for `cognitiveservices.azure.com`
-2. **`set-header`** — injects `Authorization: Bearer <token>`
-3. **`set-backend-service`** — routes to `openai-backend`
+#### How the flag works
+
+In `main.bicep`, the `enableApiConfig` parameter controls a conditional module deployment:
+
+```bicep
+module apimApi 'modules/apim-api.bicep' = if (enableApiConfig) {
+  params: {
+    apimName:         apim.outputs.name
+    foundryEndpoint:  foundryPrimary.outputs.endpoint
+    policyXml:        policyXml       // ← passed in from the command line
+  }
+  dependsOn: [rbacPrimary]            // waits for RBAC to be in place first
+}
+```
+
+When you set `enableApiConfig=true`, ARM deploys the `apim-api.bicep` module. When `false` (the default), this module is skipped entirely — ARM doesn't even evaluate it.
+
+#### Resources created by `apim-api.bicep`
+
+| Resource | ARM Type | What it does |
+|----------|----------|--------------|
+| `openai-backend` | `Microsoft.ApiManagement/service/backends` | Tells APIM where to forward requests — the URL is `{foundryEndpoint}openai` (e.g. `https://ais-aigateway-xxx.cognitiveservices.azure.com/openai`) |
+| `azure-openai-api` | `Microsoft.ApiManagement/service/apis` | Imports the Azure OpenAI REST API spec from GitHub (`inference.json`). This creates all the operations (chat completions, completions, embeddings, etc.) and sets the API path to `/openai` |
+| `policy` | `Microsoft.ApiManagement/service/apis/policies` | Applies the XML policy you pass in (`managed-identity-auth.xml`) at the API level — every operation inherits it |
+| `test-sub` | `Microsoft.ApiManagement/service/subscriptions` | Creates a subscription key scoped to this API, so clients can authenticate with `Ocp-Apim-Subscription-Key` |
+| `applicationinsights` diagnostic | `Microsoft.ApiManagement/service/apis/diagnostics` | Wires up API-level logging to the Application Insights instance deployed in Lab 1 |
+
+#### What happens under the hood
+
+1. **Backend creation** — ARM creates a backend resource in APIM that stores the Foundry URL. This is just a pointer — no connection is made yet.
+2. **API import** — ARM fetches the OpenAI inference spec from `https://raw.githubusercontent.com/.../inference.json` and creates all operations in APIM. The API path is set to `/openai`, which means requests to `https://<apim>.azure-api.net/openai/...` will be handled by this API.
+3. **Policy attachment** — The policy XML is applied to "All operations" of the API. ARM base64-encodes and stores it. At runtime, the policy:
+   - **`authentication-managed-identity`** — calls the Azure AD token endpoint to get an access token for `https://cognitiveservices.azure.com` using APIM's system-assigned managed identity
+   - **`set-header`** — injects `Authorization: Bearer <token>` into the outgoing request
+   - **`set-backend-service`** — redirects the request to `openai-backend` (the backend created in step 1)
+4. **Subscription creation** — ARM creates a subscription with auto-generated primary and secondary keys, scoped to this API only.
+5. **Diagnostic binding** — Links the API to the `app-insights-logger` created in Lab 1, enabling request/response logging and custom metrics.
+
+> **Note:** The `dependsOn: [rbacPrimary]` in `main.bicep` ensures the RBAC role assignment completes before the API module deploys. Without this, the first request through APIM might fail because the managed identity doesn't yet have permission to call Foundry.
 
 ### 3. Test the gateway
 
@@ -301,12 +344,12 @@ $SUB_KEY = (az rest --method post `
 
 $body = @{
     messages = @(@{ role = "user"; content = "What is Azure API Management in one sentence?" })
-    model = "gpt-4o-mini"
+    model = "gpt-4.1-mini"
     max_tokens = 50
 } | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod `
-  -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+  -Uri "$GATEWAY_URL/openai/deployments/gpt-4.1-mini/chat/completions?api-version=2024-10-21" `
   -Method POST -Headers @{
     "Ocp-Apim-Subscription-Key" = $SUB_KEY
     "Content-Type" = "application/json"
@@ -315,7 +358,7 @@ Invoke-RestMethod `
 
 ### ✅ Bicep Checkpoint
 
-You should see a JSON response with a chat completion from gpt-4o-mini.
+You should see a JSON response with a chat completion from gpt-4.1-mini.
 
 </details>
 
