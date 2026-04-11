@@ -27,28 +27,31 @@ In this workshop you will build an AI Gateway step by step that:
 Dev-ai-gateway/
 ├── README.md                          # This file
 ├── infra/                             # Bicep Infrastructure-as-Code
-│   ├── main.bicep                     # Main deployment template
-│   ├── main.bicepparam                # Parameters
+│   ├── main.bicep                     # Main deployment template (conditional flags)
+│   ├── main.bicepparam                # Default parameters (Lab 1 baseline)
+│   ├── all-features.bicepparam        # Full deployment — all features at once
 │   └── modules/
-│       ├── apim.bicep                 # API Management instance
-│       ├── foundry.bicep               # Microsoft Foundry resource (Azure AI Services)
-│       ├── app-insights.bicep         # Application Insights
+│       ├── apim.bicep                 # API Management (Basicv2) + logger
+│       ├── foundry.bicep              # Microsoft Foundry (AI Services) + model
+│       ├── app-insights.bicep         # Application Insights + Log Analytics
 │       ├── role-assignment.bicep      # RBAC role assignments
-│       └── apim-api.bicep             # APIM API, backend, policy & subscription
-├── labs/
-│   ├── lab-01-deploy-gateway.md       # Lab 1: Deploy the AI Gateway
-│   ├── lab-02-add-openai-backend.md   # Lab 2: Add Microsoft Foundry as backend
-│   ├── lab-03-token-rate-limiting.md   # Lab 3: Token Rate Limiting
-│   ├── lab-04-content-safety.md        # Lab 4: Content Safety
-│   ├── lab-05-load-balancing.md        # Lab 5: Load Balancing with Retry
-│   └── lab-06-monitoring.md            # Lab 6: Monitoring & Token Metrics
-├── policies/                          # APIM Policy XML files
-│   ├── base-policy.xml
-│   ├── content-safety.xml
-│   ├── load-balancing.xml
-│   ├── managed-identity-auth.xml
-│   ├── monitoring.xml
-│   └── token-rate-limit.xml
+│       └── apim-api.bicep             # Backend, API import, policy, subscription
+├── labs/                              # Workshop labs (each has 3 folded paths)
+│   ├── lab-01-deploy-gateway.md
+│   ├── lab-02-add-openai-backend.md
+│   ├── lab-03-token-rate-limiting.md
+│   ├── lab-04-content-safety.md
+│   ├── lab-05-load-balancing.md
+│   ├── lab-06-monitoring.md
+│   └── lab-07-customer-demo.md
+├── policies/                          # APIM Policy XML files (incremental)
+│   ├── base-policy.xml                # Empty base (Lab 1)
+│   ├── managed-identity-auth.xml      # Managed identity auth (Lab 2)
+│   ├── token-rate-limit.xml           # + Token rate limiting (Lab 3)
+│   ├── content-safety.xml             # + Content safety (Lab 4)
+│   ├── load-balancing.xml             # + Load balancing + retry (Lab 5)
+│   ├── monitoring.xml                 # + Token metrics emission (Lab 6)
+│   └── demo.xml                       # All features combined (Lab 7 / quick deploy)
 └── scripts/
     ├── deploy.ps1                     # Full deployment script
     ├── setup-environment.ps1          # Environment setup
@@ -57,52 +60,65 @@ Dev-ai-gateway/
 
 ## 🚀 Getting Started
 
-There are two ways to work through this workshop:
+Every lab includes **three paths** — choose the one that fits your audience. Each path is folded inside the lab using collapsible sections so you can switch freely.
 
-### Option A: Step by step (recommended for learning)
+| Path | Icon | Approach | Best for |
+|------|------|----------|----------|
+| **Portal** | 🖥️ | Click through the Azure Portal UI | Visual learners, demos |
+| **CLI** | 💻 | Azure CLI commands in PowerShell | Developers, automation |
+| **Bicep** | 🔧 | `az deployment group create` with Bicep | IaC teams, repeatability |
 
-Start directly with [Lab 1](labs/lab-01-deploy-gateway.md) and follow each lab in order. You will deploy and configure each component yourself, learning what each piece does.
+### Start the workshop
 
-### Option B: Quick Start (deploy infrastructure first)
+👉 **[Lab 1 — Deploy the AI Gateway](labs/lab-01-deploy-gateway.md)** — then follow each lab in order.
 
-If you prefer to deploy all infrastructure upfront and focus on the **policies** (Labs 3-6), run the deploy script first:
+### Quick Start: Deploy Everything at Once
+
+Want to skip the step-by-step labs and deploy the full gateway with all features? Use the all-features parameter file:
 
 ```powershell
-# 1. Clone the repository
-git clone https://github.com/LauraVerghote/AI-Gateway-Workshop.git
-cd AI-Gateway-Workshop
-
-# 2. Login to Azure
 az login
 
-# 3. Deploy the full infrastructure
-.\scripts\deploy.ps1 -ResourceGroup "rg-aigateway-workshop" -Location "swedencentral"
+$RESOURCE_GROUP = "rg-aigateway-workshop"
+az group create --name $RESOURCE_GROUP --location swedencentral
+
+cd infra
+az deployment group create `
+  --resource-group $RESOURCE_GROUP `
+  --template-file main.bicep `
+  --parameters all-features.bicepparam
 ```
 
-The script deploys the following resources into a single resource group:
+This single deployment creates everything: APIM, two Foundry instances, Application Insights, RBAC, backends, API, and the full demo policy with managed identity auth, token rate limiting, content safety, load balancing, and monitoring.
 
-| Resource | Description |
-|----------|-------------|
-| **API Management (Basicv2)** | The AI Gateway itself, with a system-assigned managed identity |
-| **Microsoft Foundry** | GPT-4o-mini model deployment |
-| **Application Insights + Log Analytics** | Monitoring and logging for the gateway |
-| **RBAC role assignment** | Grants APIM's managed identity the "Cognitive Services OpenAI User" role on the Foundry resource |
-| **APIM backends** | Pre-configured `openai-backend` pointing to the Foundry endpoint |
+After deploying, jump to [Lab 7 — Customer Demo](labs/lab-07-customer-demo.md) to see all features in action.
 
-> After running this, you can skip to [Lab 3 - Token Rate Limiting](labs/lab-03-token-rate-limiting.md). Labs 1-2 are still worth reading to understand the architecture.
+## 📚 Workshop Labs
 
-## 📚 Workshop Modules
+Each lab below contains 🖥️ Portal, 💻 CLI, and 🔧 Bicep paths as collapsible sections.
 
-| # | Lab | Duration | Topic |
-|---|-----|----------|-------|
-| 1 | [Deploy the AI Gateway](labs/lab-01-deploy-gateway.md) | 15 min | Deploy APIM Basicv2 + resource group |
-| 2 | [Microsoft Foundry Backend](labs/lab-02-add-openai-backend.md) | 20 min | Connect Foundry as backend with managed identity |
-| 3 | [Token Rate Limiting](labs/lab-03-token-rate-limiting.md) | 15 min | Limit tokens per minute |
-| 4 | [Content Safety](labs/lab-04-content-safety.md) | 15 min | Filter harmful content |
-| 5 | [Load Balancing](labs/lab-05-load-balancing.md) | 15 min | Distribute load across multiple backends |
-| 6 | [Monitoring & Metrics](labs/lab-06-monitoring.md) | 15 min | Token metrics and Application Insights |
+| # | Lab | Topic |
+|---|-----|-------|
+| 1 | [Deploy the AI Gateway](labs/lab-01-deploy-gateway.md) | APIM Basicv2, Foundry, App Insights, RBAC |
+| 2 | [Microsoft Foundry Backend](labs/lab-02-add-openai-backend.md) | Backend, API import, managed identity policy |
+| 3 | [Token Rate Limiting](labs/lab-03-token-rate-limiting.md) | Limit tokens per minute per subscription |
+| 4 | [Content Safety](labs/lab-04-content-safety.md) | Block harmful content + jailbreak detection |
+| 5 | [Load Balancing](labs/lab-05-load-balancing.md) | Multi-region backend pool with retry |
+| 6 | [Monitoring & Metrics](labs/lab-06-monitoring.md) | Token metrics in Application Insights + KQL |
+| 7 | [Customer Demo](labs/lab-07-customer-demo.md) | Guided demo of all capabilities |
 
-**Total workshop duration: ~1.5 hours**
+## 🔧 Bicep Modules
+
+| Module | Purpose |
+|--------|---------|
+| `main.bicep` | Orchestrator with conditional deployment flags |
+| `main.bicepparam` | Default parameters (Lab 1 baseline) |
+| `all-features.bicepparam` | Deploy everything at once — all features enabled |
+| `modules/apim.bicep` | API Management (Basicv2) with managed identity |
+| `modules/foundry.bicep` | Microsoft Foundry (AI Services) + model deployment |
+| `modules/app-insights.bicep` | Application Insights + Log Analytics workspace |
+| `modules/role-assignment.bicep` | RBAC role assignments |
+| `modules/apim-api.bicep` | Backend, API, policy, subscription, diagnostic |
 
 ## 🔗 References
 

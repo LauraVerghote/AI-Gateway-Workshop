@@ -1,92 +1,136 @@
-# Lab 5: Load Balancing with Retry
+# Lab 5: Load Balancing
 
-> Distribute traffic across multiple Microsoft Foundry backends with automatic failover
+> Distribute requests across multiple Microsoft Foundry instances for resilience and throughput.
 
-## Goal
+## 🎯 Goal
 
-In this lab you will:
+Add load balancing to the gateway:
+
 - Deploy a **second Microsoft Foundry** instance in a different region (East US)
-- Configure a **backend pool** in APIM that distributes traffic across both instances
-- Set up **automatic retry** on 429 (rate limit) or 503 (unavailable) errors
-- Test that requests are load balanced and failover works
+- Create a **backend pool** with weighted routing (60/40 split)
+- Add **retry logic** for 429 (rate limit) and 503 (service unavailable) errors
+- APIM automatically fails over when one backend is unavailable
 
-## Background
+## How It Works
 
-### Why load balance?
-
-A single Foundry instance has **quota limits** — a maximum number of tokens per minute (TPM) for each model deployment. When your application exceeds this limit, the API returns `429 Too Many Requests`. Load balancing solves this and more:
-
-| Problem | How load balancing helps |
-|---------|--------------------------|
-| **Quota limits** | Spread requests across multiple instances to get 2x (or more) the TPM |
-| **Regional outages** | If one region goes down, traffic automatically routes to the other |
-| **Latency** | Users in different regions get routed to a closer backend |
-| **Cost distribution** | Spread consumption across multiple subscriptions or billing accounts |
-
-### How it works in APIM
-
-APIM uses a **backend pool** — a single logical backend that contains multiple individual backends. When the policy says `set-backend-service backend-id="openai-pool"`, APIM picks one of the backends based on **priority** and **weight**:
+APIM's backend pool distributes requests across multiple Foundry instances. If one returns 429 or 503, the retry policy tries another backend in the pool. This is all transparent to the client.
 
 ```
-                    ┌── Microsoft Foundry (Sweden Central)  [weight: 60]
-Client → APIM ─────>│                                        priority: 1
-                    └── Microsoft Foundry (East US)         [weight: 40]
-                                                             priority: 1
+                                                              ┌──────────────────────┐
+                                                         ┌───►│ Foundry (Primary)    │
+                                                         │    │ Sweden Central       │
+                              ┌──────────────────────┐   │    │  - gpt-4.1-mini      │
+                              │  openai-pool         │   │    └──────────────────────┘
+                              │  (Backend Pool)      │   │
+                              ├──────────────────────┤   │
+Client ──► APIM ─────────────►│  openai-backend      │───┘
+              │               │  weight: 60, pri: 1  │
+              │               ├──────────────────────┤
+              │  retry on  ──►│  openai-backend-2nd  │───┐
+              └─ 429 / 503    │  weight: 40, pri: 1  │   │
+                              └──────────────────────┘   │    ┌──────────────────────┐
+                                                         │    │ Foundry (Secondary)  │
+                                                         └───►│ East US              │
+                                                              │  - gpt-4.1-mini      │
+                                                              └──────────────────────┘
 ```
 
-- **Priority** — lower numbers are tried first. Backends with the same priority share traffic.
-- **Weight** — within the same priority, traffic is distributed proportionally. 60/40 means ~60% of requests go to Sweden Central and ~40% to East US.
+## Prerequisites
 
-If a backend returns `429` or `503`, the **retry policy** in the `<backend>` section automatically tries another backend from the pool — all transparent to the client.
+- **Lab 2** completed (API + backend configured)
 
-## Understanding the Bicep
+---
 
-This lab adds several new resources to the infrastructure. Here's what `enableSecondaryFoundry=true` triggers:
+## 🛤️ Choose Your Path
 
-### 1. Secondary Foundry Instance
+---
 
-A second `Microsoft.CognitiveServices/accounts` resource is deployed in East US (configured in `main.bicepparam`). It gets the same model deployments (gpt-4o-mini + text-embedding-3-small) as the primary instance, giving you double the quota.
+## 🖥️ Option: Portal
 
-### 2. RBAC for the Secondary Instance
+<details>
+<summary><strong>Click to expand Portal instructions</strong></summary>
 
-APIM's managed identity needs `Cognitive Services OpenAI User` access on the secondary Foundry instance too — without this, the managed identity token from the policy won't be accepted.
+### 1. Create a Second Microsoft Foundry Resource
 
-### 3. Secondary Backend + Backend Pool
+We need a second Foundry instance in a different region so APIM can distribute traffic and fail over when one region is unavailable or rate-limited.
 
-In `apim-api.bicep`, two new resources are created when a secondary endpoint is provided:
+1. Search for **Azure AI Services** → **+ Create** → **Azure AI Services**
+2. Fill in:
+   - **Resource group**: `rg-aigateway-workshop`
+   - **Region**: **East US** (different from primary!)
+   - **Name**: `ais-aigateway-2` (globally unique)
 
-- **`openai-backend-secondary`** — points to the secondary Foundry's `/openai` endpoint
-- **`openai-pool`** — a pool-type backend containing both the primary (`openai-backend`, weight 60) and secondary (`openai-backend-secondary`, weight 40) backends
+   <img src="images/lab-05/Foundry1.png" width="500"/>
 
-The policy then references `openai-pool` instead of `openai-backend`, and APIM handles the distribution automatically.
+3. Click **Review + create** → **Create**
 
-### 4. Retry in the Backend Section
+#### Deploy gpt-4o-mini on the secondary
 
-The load balancing policy moves the `<forward-request>` into a `<retry>` block:
+1. Wait for the deployment to finish, then press **Go to resource** → **Go to Foundry portal**
+2. Go to the **Discover** tab on top → **Models** on the left
+3. Search for **gpt-4o-mini** in the search bar → select **gpt-4o-mini**
 
-```xml
-<backend>
-    <retry count="2" interval="0" first-fast-retry="true"
-        condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
-        <set-backend-service backend-id="openai-pool" />
-        <forward-request buffer-request-body="true" />
-    </retry>
-</backend>
-```
+   <img src="images/lab-05/Foundry2.png" width="500"/>
 
-This means: if the selected backend returns 429 or 503, immediately pick another backend from the pool and retry (up to 2 times). `buffer-request-body="true"` is essential — without it, the request body can't be re-sent on retry.
+4. Click **Deploy** → **Default settings**
+5. Select the right region and leave project on default. 
 
-## Steps
+### 2. Add RBAC for the Secondary
 
-### Step 1: Review the load balancing policy
+Just like in Lab 1, APIM's managed identity needs the **Cognitive Services OpenAI User** role on this new Foundry resource — otherwise it won't be able to authenticate when requests are routed to the secondary.
 
-Open `policies/load-balancing.xml` and review how it differs from the managed identity policy in Lab 2:
+1. Navigate to your **secondary Microsoft Foundry** resource in the Azure portal (leaving the Foundry portal tab)
+2. Go to **Access control (IAM)**
+3. Click **+ Add** → **Add role assignment**
+4. Search and select **Cognitive Services OpenAI User** → **Next**
+5. **Assign access to**: `Managed identity` → **+ Select members**
+6. Filter by `API Management service` → select your APIM instance → **Select**
+7. Click **Review + assign** → **Review + assign**
+
+   <img src="images/lab-05/Foundry3.png" width="500"/>
+
+### 3. Create the Secondary Backend
+
+A backend in APIM is a pointer to a downstream service URL. In Lab 2 you created `foundry-backend` for your primary Foundry. Now we add a second one for the East US instance.
+
+1. Go to your **API Management** resource → **APIs → Backends** → **+ Create new backend**
+2. Fill in:
+   - **Name**: `foundry-backend-secondary`
+   - **Backend hosting type**: `Custom URL`
+   - **Runtime URL**: `https://<secondary-foundry>.cognitiveservices.azure.com/openai` (e.g. `https://ais-aigateway-2.cognitiveservices.azure.com/openai`)
+3. Click **Create**
+
+### 4. Create the Backend Pool
+
+A **backend pool** is the key to load balancing. Instead of routing to a single backend, APIM routes to the pool, which distributes requests across its members using **priority** and **weight**:
+
+- **Priority** controls failover order — backends with the same priority receive traffic simultaneously. If all priority-1 backends fail, APIM falls back to priority-2.
+- **Weight** controls the traffic split within the same priority level — a 60/40 split means roughly 60% of requests go to the primary and 40% to the secondary.
+
+1. In **Backends** → **+ Create new backend**
+2. Fill in:
+   - **Name**: `foundry-pool`
+   - **Backend hosting type**: `Pool`
+3. Add backends to the pool:
+   - `foundry-backend` — Priority: `1`, Weight: `60`
+   - `foundry-backend-secondary` — Priority: `1`, Weight: `40`
+4. Click **Create**
+
+### 5. Update the API Policy
+
+Now we update the policy to point to the pool instead of the single backend, and add retry logic so that if one Foundry instance returns 429 (rate limited) or 503 (unavailable), APIM automatically retries on another backend in the pool.
+
+1. Go to **APIs → APIs** → select your **Microsoft Foundry API**
+2. Click **All operations** in the left panel
+3. Click the **</>** icon in the **Inbound processing** section to open the policy editor
+4. Replace the entire policy with:
+
+> **Important:** The `backend-id` values must match what you created above. If you followed the Portal path, the pool is called `foundry-pool`. The CLI/Bicep paths use `openai-pool`.
 
 ```xml
 <policies>
     <inbound>
         <base />
-        <!-- Authenticate with managed identity -->
         <authentication-managed-identity 
             resource="https://cognitiveservices.azure.com" 
             output-token-variable-name="managed-id-access-token" 
@@ -94,14 +138,14 @@ Open `policies/load-balancing.xml` and review how it differs from the managed id
         <set-header name="Authorization" exists-action="override">
             <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
         </set-header>
-        <!-- Use backend pool for load balancing -->
-        <set-backend-service backend-id="openai-pool" />
+        <!-- Route to the backend pool instead of a single backend -->
+        <set-backend-service backend-id="foundry-pool" />
     </inbound>
     <backend>
-        <!-- Retry on 429 (rate limit) or 503 (service unavailable) -->
+        <!-- Retry on 429 or 503 — tries another backend in the pool -->
         <retry count="2" interval="0" first-fast-retry="true" 
             condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
-            <set-backend-service backend-id="openai-pool" />
+            <set-backend-service backend-id="foundry-pool" />
             <forward-request buffer-request-body="true" />
         </retry>
     </backend>
@@ -114,170 +158,253 @@ Open `policies/load-balancing.xml` and review how it differs from the managed id
 </policies>
 ```
 
-Two key differences from Lab 2's policy:
+5. Click **Save**
 
-| Section | Lab 2 (basic) | Lab 5 (load balanced) |
-|---------|---------------|------------------------|
-| `inbound` | `set-backend-service backend-id="openai-backend"` | `set-backend-service backend-id="openai-pool"` |
-| `backend` | `<base />` (default forward) | `<retry>` block with failover logic |
+### 6. Test load balancing
 
-The `inbound` section is identical except for the backend ID — the authentication and managed identity token handling stays the same. The real change is in the `backend` section where the default forwarding behavior is replaced with retry logic.
+Send multiple requests — you should see responses from both regions.
 
-### Step 2: Deploy the secondary Foundry and backend pool
+#### Option A: Use the Test tab in the portal
 
-> **If you opened a new terminal since Lab 1**, set your variables again:
-> ```powershell
-> $RESOURCE_GROUP = "rg-aigateway-workshop"
-> $LOCATION = "swedencentral"
-> ```
+1. Go to **APIs → APIs** → select your **Microsoft Foundry API**
+2. Click the **Test** tab
+3. Select the **Creates a completion for the chat message** operation
+4. Fill in the template parameters:
+   - **deployment-id:** `gpt-4o-mini`
+   - **api-version:** `2024-10-21`
+5. Set the **Request body** to:
 
-Make sure you're in the `infra/` directory, then deploy:
+```json
+{
+    "messages": [{"role": "user", "content": "What region are you running in? Be brief."}],
+    "max_tokens": 30
+}
+```
+
+6. Click **Send** multiple times (5+) — you should see responses succeeding each time. With the 60/40 weighting, requests are distributed across both Foundry instances.
+
+   > **Tip:** The Test console automatically includes your subscription key, so you don't need to add it manually.
+
+#### Option B: Use PowerShell
+
+If you prefer to test from the command line, open a terminal and run the following script.
+
+> **Finding your API path, subscription key, and header name:** When you imported the API via the Microsoft Foundry tile, a few things are different from the CLI/Bicep path:
+> 1. **API path** — the API is registered at a path based on your Foundry resource name (e.g., `ais-aigateway-lv/openai`), not just `openai`. To find it: go to **APIs → APIs** → select your Microsoft Foundry API → **Settings** tab → look at the **Base URL**.
+> 2. **Subscription key header** — the Foundry import uses `api-key` as the header name (not the default `Ocp-Apim-Subscription-Key`). You can verify this in **Settings** → **Subscription key header name**.
+> 3. **Subscription key value** — go to **APIs → Subscriptions** → click the **`...`** next to your subscription → **Show/hide keys** → copy the **Primary key**. This is the actual key value to paste as `$SUB_KEY` (not the header name `api-key`).
 
 ```powershell
-# Read the load balancing policy
+$GATEWAY_URL = "<your-gateway-url>"           # e.g. https://apim-aigateway-lv.azure-api.net
+$SUB_KEY = "<your-subscription-key>"          # see above how to find this
+$API_PATH = "<your-api-path>"                 # e.g. ais-aigateway-lv/openai (see note above)
+
+for ($i = 1; $i -le 5; $i++) {
+    Write-Host "`n--- Request $i ---" -ForegroundColor Cyan
+    $body = @{
+        messages = @(@{ role = "user"; content = "What region are you running in? Be brief." })
+        model = "gpt-4o-mini"
+        max_tokens = 30
+    } | ConvertTo-Json -Depth 5
+
+    $r = Invoke-RestMethod `
+      -Uri "$GATEWAY_URL/$API_PATH/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+      -Method POST -Headers @{
+        "api-key" = $SUB_KEY
+        "Content-Type" = "application/json"
+      } -Body $body
+
+    Write-Host "  $($r.choices[0].message.content)" -ForegroundColor Green
+}
+```
+
+### ✅ Portal Checkpoint
+
+- [ ] Secondary Foundry deployed in East US with gpt-4o-mini
+- [ ] RBAC assigned for secondary Foundry
+- [ ] `foundry-backend-secondary` backend created
+- [ ] `foundry-pool` backend pool with 60/40 weighting
+- [ ] Load balancing policy applied with retry logic
+
+</details>
+
+---
+
+## 💻 Option: CLI
+
+<details>
+<summary><strong>Click to expand CLI instructions</strong></summary>
+
+### 1. Deploy with load balancing enabled
+
+```powershell
+$RESOURCE_GROUP = "rg-aigateway-workshop"
+$LOCATION = "swedencentral"
+
+cd infra
+
 $policyXml = Get-Content -Path "../policies/load-balancing.xml" -Raw
 
 @{
-  '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+  '`$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
   contentVersion = '1.0.0.0'
   parameters = @{
-    location              = @{ value = $LOCATION }
-    enableApiConfig       = @{ value = $true }
+    location               = @{ value = $LOCATION }
+    enableApiConfig        = @{ value = $true }
     enableSecondaryFoundry = @{ value = $true }
-    policyXml             = @{ value = $policyXml }
+    policyXml              = @{ value = $policyXml }
   }
 } | ConvertTo-Json -Depth 5 | Set-Content -Path "temp-params.json" -Encoding utf8
 
-# Deploy secondary Foundry + backend pool
 az deployment group create `
   --resource-group $RESOURCE_GROUP `
   --template-file main.bicep `
   --parameters temp-params.json
 ```
 
-This deployment does the following:
+The `enableSecondaryFoundry=true` flag:
+- Deploys a second Foundry instance in East US
+- Creates `openai-backend-secondary` backend in APIM
+- Creates `openai-pool` backend pool (60/40 weighting)
+- Assigns RBAC for APIM on the secondary Foundry
 
-| Resource | Type | What it does |
-|----------|------|-------------|
-| `ais-aigateway2-<suffix>` | Microsoft Foundry (East US) | Second AI Services instance with gpt-4o-mini |
-| RBAC assignment | Role Assignment | Gives APIM managed identity access to the secondary Foundry |
-| `openai-backend-secondary` | APIM Backend | Points to the secondary Foundry endpoint |
-| `openai-pool` | APIM Backend Pool | Distributes traffic 60/40 across primary and secondary |
-| Updated policy | APIM API Policy | Switches from single backend to pool + retry |
-
-> ⏱️ **Note**: This deployment takes longer than previous labs (~8-12 minutes) because it provisions a new Foundry instance and waits for model deployments. The RBAC assignment also needs time to propagate.
-
-### Step 3: Retrieve the gateway URL and subscription key
+### 2. Test load balancing
 
 ```powershell
-# Get APIM name
 $APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
-
-# Get the gateway URL
+$SUBSCRIPTION_ID = az account show --query "id" -o tsv
 $GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
 
-# Get your subscription ID
-$SUBSCRIPTION_ID = az account show --query "id" -o tsv
-
-# Get the test subscription key
 $SUB_KEY = (az rest --method post `
   --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/test-sub/listSecrets?api-version=2024-05-01" `
   | ConvertFrom-Json).primaryKey
 
-Write-Host "Gateway URL: $GATEWAY_URL"
-Write-Host "Subscription Key: $SUB_KEY"
-```
-
-### Step 4: Verify the backend pool was created
-
-Before testing, confirm the pool and its backends exist in APIM:
-
-```powershell
-# List all backends — you should see openai-backend, openai-backend-secondary, and openai-pool
-az rest --method get `
-  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/backends?api-version=2024-06-01-preview" `
-  | ConvertFrom-Json | Select-Object -ExpandProperty value | Select-Object name, @{N='type';E={$_.properties.type}}, @{N='url';E={$_.properties.url}} | Format-Table
-```
-
-You should see four backends:
-
-| Name | Type | URL |
-|------|------|-----|
-| `content-safety-backend` | *(single)* | `https://ais-aigateway-xxx.cognitiveservices.azure.com/contentsafety` |
-| `openai-backend` | *(single)* | `https://ais-aigateway-xxx.cognitiveservices.azure.com/openai` |
-| `openai-backend-secondary` | *(single)* | `https://ais-aigateway2-xxx.cognitiveservices.azure.com/openai` |
-| `openai-pool` | Pool | *(empty — pool uses its member backends)* |
-
-> **Note:** The `content-safety-backend` is still present from Lab 4. This is expected — each lab builds on the previous one.
-
-### Step 5: Test load balancing
-
-Send multiple requests through the gateway. The backend pool distributes them across both Foundry instances:
-
-```powershell
 $headers = @{
     "Ocp-Apim-Subscription-Key" = $SUB_KEY
     "Content-Type" = "application/json"
 }
 
-# Send 5 requests and verify they all succeed
 for ($i = 1; $i -le 5; $i++) {
+    Write-Host "`n--- Request $i ---" -ForegroundColor Cyan
     $body = @{
-        messages = @(@{ role = "user"; content = "Say 'Hello from request $i' and nothing else." })
+        messages = @(@{ role = "user"; content = "What region are you running in? Be brief." })
         model = "gpt-4o-mini"
-        max_tokens = 20
+        max_tokens = 30
     } | ConvertTo-Json -Depth 5
 
-    try {
-        $response = Invoke-RestMethod `
-          -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
-          -Method POST -Headers $headers -Body $body
+    $r = Invoke-RestMethod `
+      -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+      -Method POST -Headers $headers -Body $body
 
-        Write-Host "Request $i - OK: $($response.choices[0].message.content)" -ForegroundColor Green
-    } catch {
-        Write-Host "Request $i - Error: $($_.Exception.Response.StatusCode)" -ForegroundColor Red
-    }
+    Write-Host "  $($r.choices[0].message.content)" -ForegroundColor Green
 }
 ```
 
-All requests should succeed. The backend pool distributes them across your two Foundry instances automatically — you won't see which backend handled which request at this level (the pool is invisible to the client). In Lab 6, you'll use Application Insights to see the actual backend distribution.
+### ✅ CLI Checkpoint
 
-> **Tip:** To test the retry/failover behavior, you could temporarily lower the TPM quota on one of your Foundry deployments to trigger 429 errors. The retry policy will automatically route those requests to the other backend.
+- Multiple requests succeed
+- If one backend returns 429, the retry policy transparently tries another
 
-## Expected result
-
-After this lab you will have:
-- ✅ Two Microsoft Foundry instances (Sweden Central + East US)
-- ✅ APIM backend pool distributing traffic 60/40
-- ✅ Automatic retry on 429 (rate limit) and 503 (unavailable)
-- ✅ All requests succeeding through the load balanced gateway
-
-## Architecture
-
-```
-                                      ┌──────────────────────────┐
-                                 60%  │  Microsoft Foundry       │
-                              ┌──────►│  (Sweden Central)        │
-Client                        │       │  - gpt-4o-mini           │
-  │                           │       └──────────────────────────┘
-  ▼                           │
-┌───────────────────┐         │
-│  API Management   │─────────┤ Backend Pool
-│  (Gateway)        │  retry  │ "openai-pool"
-│  - Auth: MI       │◄────────┤
-│  - Retry: 429/503 │         │       ┌──────────────────────────┐
-└───────────────────┘         │  40%  │  Microsoft Foundry       │
-                              └──────►│  (East US)               │
-                                      │  - gpt-4o-mini           │
-                                      └──────────────────────────┘
-```
-
-## References
-
-- [Backend Pool Load Balancing](https://learn.microsoft.com/azure/api-management/backends?tabs=bicep)
-- [Load Balancing Lab](https://github.com/Azure-Samples/AI-Gateway/tree/main/labs/backend-pool-load-balancing)
-- [Retry Policy](https://learn.microsoft.com/azure/api-management/retry-policy)
+</details>
 
 ---
-**Previous lab:** [← Lab 4 - Content Safety](lab-04-content-safety.md)  
-**Next lab:** [Lab 6 - Monitoring →](lab-06-monitoring.md)
+
+## 🔧 Option: Bicep
+
+<details>
+<summary><strong>Click to expand Bicep instructions</strong></summary>
+
+### 1. Deploy with load balancing
+
+```powershell
+$RESOURCE_GROUP = "rg-aigateway-workshop"
+$LOCATION = "swedencentral"
+
+cd infra
+
+az deployment group create `
+  --resource-group $RESOURCE_GROUP `
+  --template-file main.bicep `
+  --parameters location=$LOCATION `
+  --parameters enableApiConfig=true `
+  --parameters enableSecondaryFoundry=true `
+  --parameters policyXml="$(Get-Content -Path '../policies/load-balancing.xml' -Raw)"
+```
+
+### What changed
+
+| Parameter | Value | Effect |
+|-----------|-------|--------|
+| `enableSecondaryFoundry` | `true` | Deploys 2nd Foundry in East US + RBAC + backend + pool |
+| `policyXml` | `load-balancing.xml` | Routes to `openai-pool` + retry on 429/503 |
+
+The backend pool in `apim-api.bicep`:
+```bicep
+resource backendPool ... = if (!empty(secondaryFoundryEndpoint)) {
+  properties: {
+    type: 'Pool'
+    pool: {
+      services: [
+        { id: '/backends/openai-backend',           priority: 1, weight: 60 }
+        { id: '/backends/openai-backend-secondary',  priority: 1, weight: 40 }
+      ]
+    }
+  }
+}
+```
+
+The retry policy in `load-balancing.xml`:
+```xml
+<backend>
+    <retry count="2" interval="0" first-fast-retry="true" 
+        condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode == 503)">
+        <set-backend-service backend-id="openai-pool" />
+        <forward-request buffer-request-body="true" />
+    </retry>
+</backend>
+```
+
+### 2. Test
+
+```powershell
+$APIM_NAME = az apim list -g $RESOURCE_GROUP --query "[0].name" -o tsv
+$SUBSCRIPTION_ID = az account show --query "id" -o tsv
+$GATEWAY_URL = az apim show --name $APIM_NAME -g $RESOURCE_GROUP --query "gatewayUrl" -o tsv
+
+$SUB_KEY = (az rest --method post `
+  --url "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/subscriptions/test-sub/listSecrets?api-version=2024-05-01" `
+  | ConvertFrom-Json).primaryKey
+
+for ($i = 1; $i -le 5; $i++) {
+    $body = @{
+        messages = @(@{ role = "user"; content = "Say hello in one word." })
+        model = "gpt-4o-mini"
+        max_tokens = 10
+    } | ConvertTo-Json -Depth 5
+
+    $r = Invoke-RestMethod `
+      -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+      -Method POST -Headers @{
+        "Ocp-Apim-Subscription-Key" = $SUB_KEY
+        "Content-Type" = "application/json"
+      } -Body $body
+
+    Write-Host "Request $i - $($r.choices[0].message.content)" -ForegroundColor Green
+}
+```
+
+### ✅ Bicep Checkpoint
+
+All requests succeed. If one backend is rate-limited, the retry policy reroutes to the other.
+
+</details>
+
+---
+
+## Expected Result
+
+All 5 requests should succeed. With the 60/40 weighting, roughly 3 out of 5 requests go to Sweden Central and 2 to East US. If one backend returns 429, the retry policy transparently tries the other — the client never sees an error.
+
+---
+
+**Next:** [Lab 6 — Monitoring →](lab-06-monitoring.md)

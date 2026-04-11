@@ -8,18 +8,18 @@ Add token rate limiting to the gateway so that:
 
 - Each subscription is limited to **500 tokens per minute**
 - The response includes an `X-Tokens-Remaining` header showing the remaining budget
-- Requests that exceed the limit get **HTTP 429 (Too Many Requests)** — the model is never called
+- Requests that exceed the limit get **HTTP 429 (Too Many Requests)** and the model is never called
 
 ## Why Token Rate Limiting?
 
-AI model calls are expensive — each request consumes tokens (both for the prompt you send and the response you receive). Without limits, a single consumer could exhaust your entire model quota or run up costs.
+AI model calls are expensive. Each request consumes tokens (both for the prompt you send and the response you receive). Without limits, a single consumer could exhaust your entire model quota or run up costs.
 
 Token rate limiting lets you:
-- **Protect shared capacity** — ensure one noisy consumer doesn't starve others
-- **Control costs** — set a predictable ceiling on token consumption per subscriber
-- **Fail fast** — reject requests *before* they reach Foundry, so you don't pay for calls that shouldn't happen
+- **Protect shared capacity**: ensure one noisy consumer doesn't starve others
+- **Control costs**: set a predictable ceiling on token consumption per subscriber
+- **Fail fast**: reject requests *before* they reach Foundry, so you don't pay for calls that shouldn't happen
 
-This is different from traditional request-per-second throttling — it operates on **tokens** (the actual unit of AI cost), not HTTP requests.
+This is different from traditional request-per-second throttling as it operates on **tokens** (the actual unit of AI cost), not HTTP requests.
 
 ## How It Works
 

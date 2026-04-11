@@ -8,7 +8,7 @@ Deploy the foundational infrastructure:
 
 - **Resource Group** for all workshop resources
 - **Azure API Management** (Basicv2) — the AI Gateway with managed identity
-- **Microsoft Foundry** (AI Services) with a gpt-4o-mini model deployment
+- **Microsoft Foundry** (AI Services) with a gpt-4o-mini or gpt-4.1-mini model deployment
 - **Application Insights + Log Analytics** for monitoring
 - **RBAC role assignment** — APIM's managed identity → Cognitive Services OpenAI User on Foundry
 
@@ -145,7 +145,7 @@ We use **Basicv2** because it deploys quickly, costs very little, and supports a
 
 ### 6. Set up RBAC
 
-1. Navigate to your **Microsft Foundry** resource in the azure portal
+1. Navigate to your **Microsoft Foundry** resource in the azure portal
 2. Go to **Access control (IAM)** 
 
    <img src="images/lab-01/Foundry7.png" width="1000"/>
@@ -355,7 +355,7 @@ Regardless of which path you chose, navigate to your resource group in the [Azur
 | `apim-aigateway-*` | API Management service |
 | `appi-aigateway-*` | Application Insights |
 | `law-appi-aigateway-*` | Log Analytics workspace |
-| `ais-aigateway-*` | AI Services (Microsoft Foundry) |
+| `ais-aigateway-*` | Microsoft Foundry |
 
 ## Architecture
 

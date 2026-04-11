@@ -125,7 +125,7 @@ This is how you give consumers (developers, apps, teams) access to your gateway 
 
 Now let's verify the full flow works end-to-end: your request goes through APIM, which authenticates to Foundry using its managed identity, and forwards the call to the OpenAI model.
 
-APIM has a built-in **Test** console that lets you send requests directly from the portal — it automatically includes the subscription key, so you don't need an external tool like Postman or curl.
+APIM has a built-in **Test** console that lets you send requests directly from the portal. It automatically includes the subscription key, so you don't need an external tool like Postman or curl.
 
 1. Go to **APIs** on the left pannel → select **Microsoft Foundry API**
 2. Click the **Test** tab
@@ -150,8 +150,8 @@ APIM has a built-in **Test** console that lets you send requests directly from t
 
 If you scroll down, you should see a 200 response with a chat completion.
 
-   <img src="images/lab-02/API12.png" width="500"/>
-      <img src="images/lab-02/API13.png" width="500"/>
+  <img src="images/lab-02/API12.png" width="500"/>
+  <img src="images/lab-02/API13.png" width="500"/>
 
 ### ✅ Portal Checkpoint
 
@@ -262,8 +262,6 @@ This deployment enables `enableApiConfig` and applies the managed identity polic
 
 > **Why a parameters file?** The policy XML is multiline. Passing it inline with `--parameters policyXml="$(…)"` truncates the content in PowerShell, causing an ARM validation error. Writing it to a JSON file first preserves the full XML.
 
-> **Run from the repo root.** The script starts with `cd infra`. If you're already in the `infra` folder, skip that line or run `cd ..` first.
-
 ```powershell
 cd infra
 
@@ -356,11 +354,46 @@ Invoke-RestMethod `
   } -Body $body | ConvertTo-Json -Depth 5
 ```
 
+
+
 ### ✅ Bicep Checkpoint
 
 You should see a JSON response with a chat completion from gpt-4.1-mini.
+  <img src="images/lab-02/API14.png" width="700"/>
 
 </details>
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  rg-aigateway-workshop                                                           │
+│                                                                                  │
+│             Ocp-Apim-          ┌──────────────────┐ Bearer token ┌─────────────┐ │
+│             Subscription-Key   │  API Management  │ (managed id) │  Microsoft  │ │
+│ ┌────────┐ ─────────────────►  │                  │ ───────────► │  Foundry    │ │
+│ │ Client │  POST /openai/...   │ ┌──────────────┐ │              │(AI Services)│ │
+│ └────────┘ ◄─────────────────  │ │ OpenAI API   │ │ ◄─────────── │-gpt-4.1-mini│ │
+│             200 OK             │ │  └─ policy:  │ │  completion  └─────────────┘ │
+│                                │ │  • auth-mi   │ │ response                     │
+│                                │ │  • set-header│ │                              │
+│                                │ │  • set-backnd│ │            ┌─────────────┐   │
+│                                │ └──────────────┘ │            │ Application │   │
+│                                │                  │            │ Insights    │   │
+│                                │ ┌──────────────┐ │            └─────────────┘   │
+│                                │ │ test-sub     │ │                              │
+│                                │ │(subscription)│ │                              │
+│                                │ └──────────────┘ │                              │
+│                                │                  │                              │
+│                                │ ┌──────────────┐ │                              │
+│                                │ │foundry-backen│ │                              │
+│                                │ │(Custom URL)  │ │                              │
+│                                │ └──────────────┘ │                              │
+│                                └──────────────────┘                              │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

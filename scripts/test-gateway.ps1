@@ -8,6 +8,9 @@ param(
     [string]$ResourceGroup,
 
     [Parameter(Mandatory = $false)]
+    [string]$ApiPath = "openai",
+
+    [Parameter(Mandatory = $false)]
     [string]$Question = "Wat is Azure API Management in 1 zin?"
 )
 
@@ -64,7 +67,7 @@ $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
     $response = Invoke-WebRequest `
-        -Uri "$GATEWAY_URL/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
+        -Uri "$GATEWAY_URL/$ApiPath/deployments/gpt-4o-mini/chat/completions?api-version=2024-10-21" `
         -Method POST `
         -Headers $headers `
         -Body $body
@@ -95,9 +98,13 @@ try {
 }
 catch {
     $sw.Stop()
+    $status = $_.Exception.Response.StatusCode.value__
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-    if ($_.Exception.Response) {
-        Write-Host "Status: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Red
+    if ($status) {
+        Write-Host "Status: $status" -ForegroundColor Red
+    }
+    if ($_.ErrorDetails.Message) {
+        Write-Host "Details: $($_.ErrorDetails.Message)" -ForegroundColor Yellow
     }
 }
 
