@@ -10,7 +10,6 @@ In this workshop you will build an AI Gateway step by step that:
 - Implements **token rate limiting** to control costs
 - Adds **content safety** filters to block harmful content
 - Configures **load balancing** across multiple backends
-- Sets up **monitoring** with Application Insights and token metrics
 
 ## 📋 Prerequisites
 
@@ -42,16 +41,14 @@ Dev-ai-gateway/
 │   ├── lab-03-token-rate-limiting.md
 │   ├── lab-04-content-safety.md
 │   ├── lab-05-load-balancing.md
-│   ├── lab-06-monitoring.md
-│   └── lab-07-customer-demo.md
+│   └── lab-06-customer-demo.md
 ├── policies/                          # APIM Policy XML files (incremental)
 │   ├── base-policy.xml                # Empty base (Lab 1)
 │   ├── managed-identity-auth.xml      # Managed identity auth (Lab 2)
 │   ├── token-rate-limit.xml           # + Token rate limiting (Lab 3)
 │   ├── content-safety.xml             # + Content safety (Lab 4)
 │   ├── load-balancing.xml             # + Load balancing + retry (Lab 5)
-│   ├── monitoring.xml                 # + Token metrics emission (Lab 6)
-│   └── demo.xml                       # All features combined (Lab 7 / quick deploy)
+│   └── demo.xml                       # All features combined (Lab 6 / quick deploy)
 └── scripts/
     ├── deploy.ps1                     # Full deployment script
     ├── setup-environment.ps1          # Environment setup
@@ -89,9 +86,9 @@ az deployment group create `
   --parameters all-features.bicepparam
 ```
 
-This single deployment creates everything: APIM, two Foundry instances, Application Insights, RBAC, backends, API, and the full demo policy with managed identity auth, token rate limiting, content safety, load balancing, and monitoring.
+This single deployment creates everything: APIM, two Foundry instances, RBAC, backends, API, and the full demo policy with managed identity auth, token rate limiting, content safety, and load balancing.
 
-After deploying, jump to [Lab 7 — Customer Demo](labs/lab-07-customer-demo.md) to see all features in action.
+After deploying, jump to [Lab 6 — Customer Demo](labs/lab-06-customer-demo.md) to see all features in action.
 
 ## 📚 Workshop Labs
 
@@ -104,8 +101,7 @@ Each lab below contains 🖥️ Portal, 💻 CLI, and 🔧 Bicep paths as collap
 | 3 | [Token Rate Limiting](labs/lab-03-token-rate-limiting.md) | Limit tokens per minute per subscription |
 | 4 | [Content Safety](labs/lab-04-content-safety.md) | Block harmful content + jailbreak detection |
 | 5 | [Load Balancing](labs/lab-05-load-balancing.md) | Multi-region backend pool with retry |
-| 6 | [Monitoring & Metrics](labs/lab-06-monitoring.md) | Token metrics in Application Insights + KQL |
-| 7 | [Customer Demo](labs/lab-07-customer-demo.md) | Guided demo of all capabilities |
+| 6 | [Customer Demo](labs/lab-06-customer-demo.md) | Guided demo of all capabilities |
 
 ## 🔧 Bicep Modules
 

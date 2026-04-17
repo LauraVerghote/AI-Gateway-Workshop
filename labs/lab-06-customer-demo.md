@@ -1,26 +1,19 @@
-# Lab 7: Customer Demo
+# Lab 6: Customer Demo
 
 > A guided walkthrough to demonstrate the AI Gateway capabilities to customers
 
 ## What's deployed
 
-After completing Labs 1–6, you have a fully configured AI Gateway:
+After completing Labs 1–5, you have a fully configured AI Gateway:
 
 ```
-                                    ┌─────────────────────┐
-                                    │  Application        │
-                                    │  Insights           │
-                                    │  + Log Analytics    │
-                                    └──────▲──────────────┘
-                                           │ Telemetry
-┌──────────┐   Subscription   ┌────────────┴──────────────────────┐
+┌──────────┐   Subscription   ┌───────────────────────────────────┐
 │  Client  │────key──────────►│  API Management (Basicv2)         │
 │  Apps    │◄─────────────────│                                   │
 └──────────┘                  │ ✅ Managed Identity Auth (no keys)│
                               │ ✅ Token Rate Limiting            │
                               │ ✅ Content Safety + Jailbreak     │
                               │ ✅ Load Balancing + Retry         │
-                              │ ✅ Token Metrics Emission         │
                               └──────┬───────────────┬────────────┘
                                      │               │
                             ┌────────▼───────┐ ┌─────▼──────────┐
@@ -37,9 +30,9 @@ After completing Labs 1–6, you have a fully configured AI Gateway:
 
 ## Pre-demo setup
 
-This deploys a single combined policy (`policies/demo.xml`) that includes **all** capabilities at once — managed identity auth, token rate limiting, content safety, load balancing, retry, and monitoring. One deployment, zero waiting during the demo.
+This deploys a single combined policy (`policies/demo.xml`) that includes **all** capabilities at once — managed identity auth, token rate limiting, content safety, load balancing, and retry. One deployment, zero waiting during the demo.
 
-> **If you just finished Lab 6 in the same terminal**, your variables are already set — skip to the deployment command.
+> **If you just finished Lab 5 in the same terminal**, your variables are already set — skip to the deployment command.
 
 ```powershell
 $RESOURCE_GROUP = "rg-aigateway-workshop-<ID>"
@@ -257,58 +250,6 @@ for ($i = 1; $i -le 10; $i++) {
 
 ---
 
-## Demo 5: Monitoring (Azure Portal)
-
-Every request flowing through the gateway emits token metrics to Application Insights — broken down by model, subscription, and client IP. This gives you full visibility into who's consuming what.
-
-Open the Azure Portal and navigate to **Application Insights** (`appi-aigateway-br2uhdrt4lfxc`).
-
-### Custom token metrics
-
-1. Go to **Monitoring → Metrics**
-2. Set **Metric namespace** to `AIGateway` (under "Custom")
-3. Select **Total Token Count**, aggregation **Sum**
-4. Click **Apply splitting** → split by **Model** or **Subscription ID**
-
-### KQL queries
-
-Go to **Monitoring → Logs** and run:
-
-**Token consumption by model:**
-```kql
-customMetrics
-| where name startswith "AIGateway"
-| where name contains "Total"
-| summarize TotalTokens = sum(value) by bin(timestamp, 1h), tostring(customDimensions["Model"])
-| render timechart
-```
-
-**Request success rate and latency:**
-```kql
-requests
-| where url contains "openai"
-| summarize 
-    TotalRequests = count(),
-    FailedRequests = countif(toint(resultCode) >= 400),
-    AvgDuration = avg(duration),
-    P95Duration = percentile(duration, 95)
-  by bin(timestamp, 5m)
-| extend SuccessRate = round(100.0 * (TotalRequests - FailedRequests) / TotalRequests, 1)
-| project timestamp, TotalRequests, SuccessRate, AvgDuration, P95Duration
-| render timechart
-```
-
-**429 rate limit errors:**
-```kql
-requests
-| where url contains "openai"
-| where toint(resultCode) >= 400
-| summarize Count = count() by bin(timestamp, 5m), resultCode
-| render timechart
-```
-
----
-
 ## Summary for customers
 
 | Capability | What it does | Why it matters |
@@ -317,66 +258,5 @@ requests
 | **Token Rate Limiting** | Cap tokens per minute per consumer | Cost control, fair usage, prevent quota exhaustion |
 | **Content Safety** | Block harmful prompts + jailbreak attempts before they reach the model | Responsible AI, compliance, brand protection |
 | **Load Balancing + Retry** | Distribute across regions, auto-failover on 429/503 | Higher availability, 2x quota, regional resilience |
-| **Token Monitoring** | Per-model, per-consumer token metrics in App Insights | Cost attribution, capacity planning, SLA tracking |
-
----
-
-## How the AI Gateway Helps Protect Against OWASP Agentic Threats
-
-The [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) identifies the most critical security risks facing autonomous AI systems: agents that plan, act, use tools, and coordinate across workflows. An API gateway like APIM doesn't solve all of them, but it adds meaningful **prevention, detection, and response** capabilities for many. Here's the full picture.
-
-### Threats the gateway actively mitigates
-
-These are threats where the gateway provides direct protection: enforcement that blocks or limits the attack.
-
-| OWASP Agentic Threat | Risk | How the AI Gateway helps |
-|---|---|---|
-| **Agent Goal Hijack** (ASI01) | Malicious prompts (direct or indirect) override the agent's intended goal to exfiltrate data, trigger unintended actions, or bypass safety guardrails | **Content safety policy** (Lab 4) screens requests *before* they reach the model. Detects jailbreak patterns and prompt injection attempts. The gateway returns 403 and the model is never called. APIM logs identify which consumer sent the attempt and from which IP. |
-| **Tool Misuse** (ASI02) | Agent is tricked into using legitimate tools for harmful purposes, e.g. a code execution tool turned into a data exfiltration channel | Gateway logs every API call with full request details. **Rate limiting** (Lab 3) caps the blast radius. A compromised agent can't make unlimited tool calls. Content safety can screen tool-calling payloads for harmful patterns. |
-| **Identity & Privilege Abuse** (ASI03) | Leaked or stolen credentials let agents operate beyond their intended scope (privilege escalation, impersonation) | **Managed identity auth** (Lab 2) eliminates API key exposure to consumers. APIM authenticates to Foundry via managed identity. **Subscription keys** isolate consumers. APIM logs every auth failure (401s), making credential stuffing visible immediately. |
-| **Cascading Failures** (ASI08) | One agent failure triggers a chain reaction across the system: retry storms, resource exhaustion, cascading errors | **Load balancing + retry** (Lab 5) distributes traffic across regions with automatic failover. **Token rate limiting** prevents one consumer from exhausting shared capacity. APIM absorbs 429s/503s and retries transparently instead of letting failures cascade to callers. |
-
-### Threats the gateway helps detect (but can't prevent alone)
-
-For these threats, the gateway doesn't block the attack directly, but provides the **signals and audit trail** needed to detect and respond.
-
-| OWASP Agentic Threat | Risk | What the gateway provides |
-|---|---|---|
-| **Unexpected Code Execution** (ASI05) | Natural-language execution paths unlock code execution. Agent generates and runs malicious code | Gateway logs the full request/response chain. If an agent triggers unexpected code execution via a tool call, APIM logs show which consumer, what payload, and from which IP. Content safety may catch code-related harmful content in requests. |
-| **Memory & Context Poisoning** (ASI06) | Attacker manipulates agent memory or conversation context to reshape future behavior | Gateway monitoring over time shows behavioral shifts. A consumer whose token patterns gradually change (probing to exploitation) leaves a trail in App Insights `customMetrics`. But the fix is in the agent's memory management layer. |
-| **Human-Agent Trust Exploitation** (ASI09) | Agent produces confident, polished outputs that mislead human approvers into authorizing harmful actions | The gateway can't judge output quality. But APIM logs and token metrics help audit *which* decisions went through, *who* approved them, and *how much* compute was consumed, enabling post-incident investigation. |
-
-### Threats outside the gateway's scope
-
-These threats happen in layers the API gateway doesn't touch.
-
-| OWASP Agentic Threat | Risk | Where to address it |
-|---|---|---|
-| **Agentic Supply Chain** (ASI04) | Poisoned tools, compromised MCP servers, malicious plugins injected at build or runtime | Tool provenance verification, dependency scanning, secure MCP server configuration, trusted tool registries |
-| **Insecure Inter-Agent Communication** (ASI07) | Spoofed or tampered messages between agents in multi-agent systems | Mutual authentication between agents, message signing, agent identity verification at the orchestration layer |
-| **Rogue Agents** (ASI10) | Agent acts autonomously in misaligned ways: concealment, self-modification, deceptive behavior | Agent sandboxing, behavioral guardrails, evaluation pipelines, kill switches, continuous alignment testing |
-
-### The defense-in-depth picture
-
-No single layer protects against everything. The AI Gateway is one layer in a defense-in-depth stack:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Application Layer                                      │
-│  Output sanitization, RAG grounding, human-in-the-loop  │
-├─────────────────────────────────────────────────────────┤
-│  AI Gateway (APIM)                          ◄── You are here
-│  Auth, rate limiting, content safety,                   │
-│  monitoring, load balancing                             │
-├─────────────────────────────────────────────────────────┤
-│  AI Platform (Foundry + Defender for AI)                │
-│  Model-level content filters, threat detection,         │
-│  deployment-level quotas                                │
-├─────────────────────────────────────────────────────────┤
-│  Infrastructure                                         │
-│  RBAC, network isolation, managed identity,             │
-│  supply chain security, CI/CD controls                  │
-└─────────────────────────────────────────────────────────┘
-```
 
 The gateway doesn't replace model-level safety or application-level validation. It adds a **centralized enforcement and observability layer** between consumers and models that makes the overall system significantly harder to attack and easier to audit.
